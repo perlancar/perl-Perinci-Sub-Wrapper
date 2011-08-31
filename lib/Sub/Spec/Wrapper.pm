@@ -144,8 +144,8 @@ sub compile {
 
 WARNING: PRELIMINARY VERSION, NOT EVERYTHING DESCRIBED IS IMPLEMENTED
 
-This module provides wrap_subs() that implements/utilizes many spec clauses,
-like C<args>, C<result>, C<timeout>, etc, via wrapping.
+This module provides wrap_sub() that implements/utilizes many spec clauses, like
+C<args>, C<result>, C<timeout>, etc, via wrapping.
 
 This module uses L<Log::Any> for logging.
 
