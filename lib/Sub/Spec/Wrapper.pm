@@ -131,19 +131,21 @@ sub compile {
 }
 
 1;
-# ABSTRACT: Wrap subroutines
+# ABSTRACT: Wrap subroutine to its implement Sub::Spec clauses
 
 =head1 SYNOPSIS
 
- use Sub::Spec::Wrapper;
+ use Sub::Spec::Wrapper qw(wrap_sub);
+ my $sub = wrap_sub(sub => sub {die "test\n"}, spec=>{});
+ my $res = $sub->(); # [500, "Sub died: test"]
 
 
 =head1 DESCRIPTION
 
 WARNING: PRELIMINARY VERSION, NOT EVERYTHING DESCRIBED IS IMPLEMENTED
 
-This module provides wrap() that implements/utilizes many spec clauses, like
-C<args>, C<result>, C<timeout>, etc.
+This module provides wrap_subs() that implements/utilizes many spec clauses,
+like C<args>, C<result>, C<timeout>, etc, via wrapping.
 
 This module uses L<Log::Any> for logging.
 
