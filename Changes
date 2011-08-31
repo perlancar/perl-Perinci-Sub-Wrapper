@@ -1,5 +1,10 @@
 Revision history for Sub::Spec::Wrapper
 
+0.02     2011-08-31
+
+         Build and POD fixes.
+
+
 0.01     2011-08-31
 
          First release.
