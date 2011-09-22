@@ -5,6 +5,7 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
+use Data::Dump::OneLine qw(dump1);
 use Scalar::Util qw(blessed refaddr);
 
 require Exporter;
@@ -64,14 +65,48 @@ sub wrap_sub {
     $wrapper->add_line(
         'package Sub::Spec::Wrapped;',
         'sub {',
-        '    my %args = @_;',
+    );
+
+    my $args_as = $spec->{args_as} // "hash";
+    my $args_var;
+    my $args_line;
+    if ($args_as eq 'hash') {
+        $args_var = '%args';
+        $args_line = 'my %args = @_;';
+    } elsif ($args_as eq 'hashref') {
+        $args_var = '$args';
+        $args_line = 'my $args = {@_};';
+    } elsif ($args_as =~ /\A(arrayref|array)\z/) {
+        # temp, eventually will use codegen_convert_args_to_array()
+        $wrapper->add_line(
+            '    require Sub::Spec::ConvertArgs::Array;',
+            '    my $ares = Sub::Spec::ConvertArgs::Array::'.
+                'convert_args_to_array(args=>{@_}, spec=>'.dump1($spec).');',
+            '    return $ares if $ares->[0] != 200;',
+            );
+        if ($args_as eq 'array') {
+            $args_var = '@args';
+            $args_line = 'my @args = @{$ares->[2]};';
+        } else {
+            $args_var = '$args';
+            $args_line = 'my $args = $ares->[2];';
+        }
+    } elsif ($args_as eq 'object') {
+        die "Sorry, args_as 'object' is not supported yet";
+    } else {
+        die "Invalid args_as: $args_as, must be hash/hashref/".
+            "array/arrayref/object";
+    }
+    $wrapper->add_line("    $args_line");
+
+    $wrapper->add_line(
         '    my $res;',
     );
 
     $wrapper->call_handlers("before_eval", $spec);
     $wrapper->add_line('eval {');
     $wrapper->call_handlers("before_call", $spec);
-    $wrapper->add_line('$res = $'.$subname.'->(%args);');
+    $wrapper->add_line('$res = $'.$subname."->($args_var);");
     $wrapper->add_line('};');
     $wrapper->add_line(
         '    my $eval_err = $@;',
