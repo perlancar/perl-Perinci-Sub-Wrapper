@@ -1,5 +1,13 @@
 Revision history for Sub::Spec::Wrapper
 
+0.03     2011-09-22
+
+         [ENHANCEMENTS]
+
+         - Support 'args_as' spec clause (hash/hashref/array/arrayref supported,
+           but object not yet).
+
+
 0.02     2011-08-31
 
          Build and POD fixes.
