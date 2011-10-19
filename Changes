@@ -1,5 +1,11 @@
 Revision history for Sub::Spec::Wrapper
 
+0.04     2011-10-19
+
+         No functional changes. Add missing dependency to
+         Sub::Spec::ConvertArgs::Array [thanks cpant & Andreas].
+
+
 0.03     2011-09-22
 
          [ENHANCEMENTS]
