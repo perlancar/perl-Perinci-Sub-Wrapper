@@ -1,8 +1,13 @@
-Revision history for Sub::Spec::Wrapper
+Revision history for Perinci-Sub-Wrapper
+
+0.06     2012-02-01 (not yet released)
+
+         Rename distribution from Sub-Spec-Wrapper to Perinci-Sub-Wrapper.
+
 
 0.05     2012-01-21
 
-         No functional changes. Mark deprecated.
+         No functional changes. Mark Sub-Spec-Wrapper deprecated.
 
 
 0.04     2011-10-19

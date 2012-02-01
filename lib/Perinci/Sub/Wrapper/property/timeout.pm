@@ -1,4 +1,4 @@
-package Sub::Spec::Wrapper::Clause::timeout;
+package Perinci::Sub::Wrapper::property::timeout;
 
 sub before_call {
     my ($wrapper, $val) = @_;
