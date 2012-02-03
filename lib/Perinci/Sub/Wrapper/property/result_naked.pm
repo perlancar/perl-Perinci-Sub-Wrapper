@@ -1,4 +1,4 @@
-package Sub::Spec::Wrapper::Clause::_perinci::add_envelope;
+package Sub::Spec::Wrapper::Clause::result_naked;
 
 sub after_eval {
     my ($wrapper, $val) = @_;
@@ -8,4 +8,3 @@ sub after_eval {
 }
 
 1;
-
