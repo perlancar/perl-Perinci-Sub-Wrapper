@@ -6,6 +6,7 @@ use warnings;
 use Log::Any '$log';
 
 use Data::Dump::OneLine qw(dump1);
+use Data::Dumper;
 use Scalar::Util qw(blessed refaddr);
 
 require Exporter;
@@ -15,10 +16,115 @@ our @EXPORT_OK = qw(wrap_sub);
 # VERSION
 
 our %SPEC;
+our $INDENT = " " x 4;
 
 sub new {
     my ($class) = @_;
     bless {}, $class;
+}
+
+sub __squote {
+    my $res = Data::Dumper->new([shift])->
+        Purity(1)->Terse(1)->Deepcopy(1)->Dump;
+    chomp $res;
+    $res;
+}
+
+sub _known_sections {
+    state $v = {
+        outside_top    => {order=>0, indent=>0},
+        top            => {order=>1, indent=>1},
+        before_eval    => {order=>2, indent=>1},
+        before_call    => {order=>3, indent=>2},
+        call           => {order=>4, indent=>2},
+        after_call     => {order=>5, indent=>2},
+        after_eval     => {order=>6, indent=>1},
+        bottom         => {order=>7, indent=>1},
+        outside_bottom => {order=>8, indent=>0},
+    };
+    $v;
+}
+
+sub section_empty {
+    my ($self, $section) = @_;
+    !$self->{code}{$section};
+}
+
+sub _has_inside_eval {
+    my ($self) = @_;
+    !($self->section_empty('before_eval') &&
+          $self->section_empty('after_eval'));
+}
+
+sub _check_known_section {
+    my ($self, $section) = @_;
+    my $ks = $self->_known_sections;
+    $ks->{$section} or die "BUG: Unknown code section '$section'";
+}
+
+sub select_section {
+    my ($self, $section) = @_;
+    $self->_check_known_section($section);
+    $self->{cur_section} = $section;
+    $self;
+}
+
+sub indent {
+    my ($self) = @_;
+    my $section = $self->{cur_section};
+    $self->{indent}{$section}++;
+    $self;
+}
+
+sub unindent {
+    my ($self) = @_;
+    my $section = $self->{cur_section};
+    if (--$self->{indent}{$section} < 0) {
+        die "BUG: over-unindent for section '$section'!";
+    }
+    $self;
+}
+
+sub _push_or_unshift_lines {
+    my ($self, $which, @lines) = @_;
+    my $section = $self->{cur_section};
+
+    unless ($self->{code}{$section}) {
+        unshift @lines, "", "# * section: $section";
+        $self->{code}{$section} = [];
+        $self->{indent}{$section} = $self->_known_sections->{$section}{indent};
+    }
+
+    my $indent = $self->{indent}{$section};
+    @lines = map {($INDENT x $indent) . $_} @lines;
+    if ($which eq 'push') {
+        push @{$self->{code}{$section}}, @lines;
+    } else {
+        unshift @{$self->{code}{$section}}, @lines;
+    }
+    $self;
+}
+
+sub push_lines {
+    my ($self, @lines) = @_;
+    $self->_push_or_unshift_lines("push", @lines);
+}
+
+# so far never actually used
+sub unshift_lines {
+    my ($self, @lines) = @_;
+    $self->_push_or_unshift_lines("unshift", @lines);
+}
+
+sub _code_as_str {
+    my ($self) = @_;
+    my @lines;
+    my $ss = $self->_known_sections;
+    for my $s (sort {$ss->{$a}{order} <=> $ss->{$b}{order}} keys %$ss) {
+        next if $self->section_empty($s);
+        push @lines, @{$self->{code}{$s}};
+    }
+    join "\n", @lines;
 }
 
 sub handlemeta_v { {} }
@@ -45,63 +151,78 @@ sub handlemeta_args_as { {prio=>1} }
 sub handle_args_as {
     my ($self, %args) = @_;
 
-    my $meta  = $args{meta};
-    my $value = $args{value};
-    my $new   = $args{new};
+    my $meta   = $args{meta};
+    my $args_p = $meta->{args} // {};
+    my $value  = $args{value};
+    my $new    = $args{new};
 
-    state $args_token_sub = sub {
-        my ($args_as) = @_;
-        if ($args_as eq 'hash') {
-            return '%args';
-        } elsif ($args_as eq 'hashref') {
-            return '$args';
-        } elsif ($args_as eq 'array') {
-            return '@args';
-        } elsif ($args_as eq 'arrayref') {
-            return '$args';
-        } else {
-            die "BUG: Unknown value of args_as: $args_as";
+    $self->select_section('top');
+
+    my $v = $new // $value;
+    my $t;
+    my $accept_line; # code in our wrapper to accept args from @_
+    if ($v =~ /\Ahash(ref)?\z/) {
+        my $ref = $v =~ /ref/;
+        my $tok = $ref ? '$args' : '%args';
+        $self->push_lines("my $tok = " . ($ref ? '{@_}' : '@_') . ';');
+        $self->{args_token} = $tok;
+        while(my ($a, $as) = each %$args_p) {
+            $self->{arg_tokens}{$a} = '$args' . ($ref ? '->' : '') .
+                '{'.__squote($a).'}';
         }
-    };
-
-    if ($new) { $self->add_line("# convert args from $value to $new") }
-    my $args_line;
-    my $p; # XXX
-    if ($value eq 'hash') {
-        $args_line = 'my %args = @_;';
-    } elsif ($value eq 'hashref') {
-        $args_line = 'my $args = {@_};';
-    } elsif ($value =~ /\A(arrayref|array)\z/) {
-        # temp, eventually will use codegen_convert_args_to_array()
-        $self->add_line(
-            '    require Perinci::Sub::ConvertArgs::Array;',
-            '    my $ares = Perinci::Sub::ConvertArgs::Array::'.
-                'convert_args_to_array(args=>{@_}, spec=>'.
-                    dump1($meta->{args}).');',
-            '    return $ares if $ares->[0] != 200;',
-        );
-        if ($value eq 'array') {
-            $args_line = 'my @args = @{$ares->[2]};';
-        } else {
-            $args_line = 'my $args = $ares->[2];';
+    } elsif ($v =~ /^\Aarray(ref)?\z/) {
+        my $ref = $v =~ /ref/;
+        my $tok = $ref ? '$args' : '@args';
+        $self->push_lines("my $tok = " . ($ref ? '[@_]' : '@_') . ';');
+        $self->{args_token} = $tok;
+        while(my ($a, $as) = each %$args_p) {
+            defined($as->{pos}) or die "Error in args property for arg '$a': ".
+                "no pos defined";
+            if ($as->{greedy}) {
+                # XXX currently not a real token, not lvalue
+                $as->{pos} += 0;
+                my $av = '$args'.$as->{pos};
+                $self->push_lines(
+                    "my $av = [splice ".($ref ? '@$':'@').'args, '.
+                        $as->{pos}.'];');
+                $self->{arg_tokens}{$a} = $av;
+            } else {
+                $self->{arg_tokens}{$a} = '$args' . ($ref ? '->' : '') .
+                    '[' . $as->{pos} . ']';
+            }
         }
     } else {
-        die "Invalid args_as: $value, must be hash/hashref/".
-            "array/arrayref";
+        die "Unsupported args_as '$v'";
     }
-    $self->add_line("    $args_line");
+
+    if (defined($new) && $new ne $value) {
+        # XXX
+    } else {
+        $self->push_lines(
+            "",
+            "# accept args as $value",
+            $accept_line,
+        );
+    }
 }
 
 sub handlemeta_result_naked { {prio=>90} }
 sub handle_result_naked {
     my ($self, %args) = @_;
-    #return if !!$args{old} eq !!$args{new};
-}
+    return unless defined($args{new}) && !!$args{value} ne !!$args{new};
 
-sub add_line {
-    my ($self, @lines) = @_;
-    $self->{code} //= [];
-    push @{$self->{code}}, @lines;
+    $self->select_section('bottom');
+    if ($args{new}) {
+        $self->push_lines(
+            '# strip envelope (convert result_naked 0->1)',
+            '$res = $res->[2];',
+        );
+    } else {
+        $self->push_lines(
+            '# envelope result (convert result_naked 1->0)',
+            '$res = [200, "OK", $res];',
+        );
+    }
 }
 
 sub wrap {
@@ -114,10 +235,15 @@ sub wrap {
     $args{convert} //= {};
     my $convert  = $args{convert};
     my $force    = $args{force};
+    my $trap     = $args{trap} // 1;
 
     my $comppkg  = "Perinci::Sub::Wrapped";
 
     return [304, "Already wrapped"] if blessed($sub) && !$force;
+
+    my $v = $meta->{v} // 1.0;
+    return [412, "Unsupported metadata version ($v), only 1.1 supported"]
+        unless $v == 1.1;
 
     # put the sub in a named variable, so it can be accessed by the wrapper
     # code.
@@ -125,10 +251,13 @@ sub wrap {
     { no strict 'refs'; ${$subname} = $sub; }
 
     $self->{args} = \%args;
-    $self->add_line(
+    $self->select_section('outside_top');
+    $self->push_lines(
         "package $comppkg;",
-        'sub {',
-    );
+        'sub {');
+    $self->select_section('top');
+    $self->push_lines(
+        'my $res;');
 
     # XXX validate metadata first to filter invalid properties, also to fill
     # default values. currently this is a quick/temp code.
@@ -151,7 +280,10 @@ sub wrap {
             prio=>$hm->{prio}, value=>$meta->{$k0}, property=>$k0,
             meth=>"handle_$k",
         };
-        $ha->{new} = $convert->{$k0} if exists $convert->{$k0};
+        if (exists $convert->{$k0}) {
+            $ha->{new}   = $convert->{$k0};
+            $meta->{$k0} = $convert->{$k0};
+        }
         $handler_args{$k} = $ha;
     }
 
@@ -163,40 +295,48 @@ sub wrap {
         $self->$meth(args=>\%args, meta=>$meta, %$ha);
     }
 
-=begin comment
+    $self->select_section('call');
+    $self->push_lines('$res = $'.$subname."->(".$self->{args_token}.");");
 
-    $self->add_line(
-        '    my $res;',
-    );
+    if ($trap || $self->_has_inside_eval) {
+        $self->select_section('after_eval');
+        $self->push_lines(
+            '};',
+            'my $eval_err = $@;',
+            'if ($eval_err) {');
+        $self->indent;
+        $self->push_lines(
+            '$res = '.(
+                $meta->{result_naked} ?
+                    'undef' :
+                        '[500, "Function died: $eval_err"]').';');
+        $self->unindent;
+        $self->push_lines(
+            '}');
+    }
 
-    $self->call_handlers("before_eval", $spec);
-    $self->add_line('eval {');
-    $self->call_handlers("before_call", $spec);
-    $self->add_line('$res = $'.$subname."->($args_var);");
-    $self->add_line('};');
-    $self->add_line(
-        '    my $eval_err = $@;',
-        '    if ($eval_err) { return [500, "Sub died: $eval_err"] }',
-    );
-    $self->call_handlers("after_eval", $spec);
-    $self->add_line(
-        '    $res;',
-        '}',
-    );
+    # return result
+    $self->select_section('bottom');
+    $self->push_lines(
+        '$res;');
+    $self->select_section('outside_bottom');
+    $self->push_lines(
+        '}');
 
-    my $source = join "\n", @{$self->{code}};
-    $log->tracef("wrapper source code: %s", $wrapped);
-    my $wrapped = eval $source;
-    die "BUG: Wrapper code can't be compiled: $@" if $@;
+    if ($self->_has_inside_eval) {
+        $self->select_section('before_eval');
+        $self->push_lines(
+            'eval {');
+    }
 
+    my $source = $self->_code_as_str;
+    $log->tracef("wrapper source code: %s", $source);
+    #my $wrapped = eval $source;
+    #die "BUG: Wrapper code can't be compiled: $@" if $@;
 
-=end comment
-
-=cut
 
     $log->tracef("<- wrap()");
     #[200, "OK", {sub=>$wrapped, source=>$code, meta=>$meta}];
-
 }
 
 $SPEC{wrap_sub} = {
@@ -256,6 +396,18 @@ _
                 'when sub has been wrapped',
             default => 0,
         },
+        trap => {
+            schema => 'bool',
+            summary => 'Whether to trap exception using an eval block',
+            description => <<'_',
+
+If set to true, will wrap call using an eval {} block and return 500 /undef if
+function dies. Note that if some other properties requires an eval block (like
+'timeout') an eval block will be added regardless of this parameter.
+
+_
+            default => 1,
+        },
     },
 };
 sub wrap_sub {
@@ -265,7 +417,7 @@ sub wrap_sub {
 1;
 # ABSTRACT: A multi-purpose subroutine wrapping framework
 
-=for Pod::Coverage ^(new|handle(meta)?_.+|convert(meta)?_.+|wrap|add_.+)$
+=for Pod::Coverage ^(new|handle(meta)?_.+|convert(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|select_section|(push|unshift)_lines)$
 
 =head1 SYNOPSIS
 
