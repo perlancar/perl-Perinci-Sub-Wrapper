@@ -151,45 +151,81 @@ sub handle_args_as {
     my $value  = $args{value};
     my $new    = $args{new};
 
-    # args_token and arg_tokens are for argument validation later in 'args'
-
-    $self->select_section('sub_top');
+    # We support conversion of arguments between hash/hashref/array/arrayref. To
+    # make it simple, currently the algorithm is as follow: we first form the
+    # %args hash. If args_as is already 'hash', we just do 'my %args = @_'.
+    # Otherwise, we convert from the other forms.
+    #
+    # We then validate each argument in %args (code generated in 'args'
+    # handler).
+    #
+    # Finally, unless original args_as is 'hash' we convert to the final form
+    # that the wrapped function expects.
+    #
+    # This setup is optimal when both the function and generated wrapper accept
+    # 'hash', but suboptimal for other cases (especially positional ones, as
+    # they have to undergo a round-trip to hash even when both accept 'array').
+    # This will be rectified in the future.
 
     my $v = $new // $value;
-    $self->push_lines("# accept args as $v");
-    if ($v =~ /\Ahash(ref)?\z/) {
-        my $ref = $v =~ /ref/;
-        my $tok = $ref ? '$args' : '%args';
-        $self->push_lines("my $tok = " . ($ref ? '{@_}' : '@_') . ';');
-        $self->{args_token} = $tok;
-        while(my ($a, $as) = each %$args_p) {
-            $self->{arg_tokens}{$a} = '$args' . ($ref ? '->' : '') .
-                '{'.__squote($a).'}';
-        }
-    } elsif ($v =~ /^\Aarray(ref)?\z/) {
-        my $ref = $v =~ /ref/;
-        my $tok = $ref ? '$args' : '@args';
-        $self->push_lines("my $tok = " . ($ref ? '[@_]' : '@_') . ';');
-        $self->{args_token} = $tok;
-        while(my ($a, $as) = each %$args_p) {
+    $self->select_section('sub_top');
+    if ($v eq 'hash') {
+         $self->push_lines('my %args = @_;');
+    } elsif ($v eq 'hashref') {
+        $self->push_lines('my %args = %{$_[0]};');
+    } elsif ($v =~ /\Aarray(ref)?\z/) {
+        my $ref = $1 ? 1:0;
+        $self->push_lines('my %args;');
+        while (my ($a, $as) = each %$args_p) {
+            my $line = '$args{'.__squote($a).'} = ';
             defined($as->{pos}) or die "Error in args property for arg '$a': ".
                 "no pos defined";
+            my $pos = int($as->{pos} + 0);
+            $pos >= 0 or die "Error in args property for arg '$a': ".
+                "negative value in pos";
             if ($as->{greedy}) {
-                # XXX currently not a real token, not lvalue
-                $as->{pos} += 0;
-                my $av = '$args'.$as->{pos};
-                $self->push_lines(
-                    "my $av = [splice ".($ref ? '@$':'@').'args, '.
-                        $as->{pos}.'];');
-                $self->{arg_tokens}{$a} = $av;
+                $line .= '[splice '.($ref ? '@{$_[0]}' : '@_').", $pos]";
             } else {
-                $self->{arg_tokens}{$a} = '$args' . ($ref ? '->' : '') .
-                    '[' . $as->{pos} . ']';
+                $line .= $ref ? '$_[0]['.$pos.']' : '$_['.$pos.']';
             }
+            $self->push_lines("$line;");
         }
     } else {
-        die "Unsupported args_as '$v'";
+        die "Unknown args_as value '$v'";
     }
+
+    my $tok;
+    $self->select_section('before_call');
+    $v = $value;
+    if ($v eq 'hash') {
+        $tok = '%args';
+    } elsif ($v eq 'hashref') {
+        $tok = '\%args';
+    } elsif ($v =~ /\Aarray(ref)?\z/) {
+        my $ref = $1 ? 1:0;
+        $self->push_lines('my @args;');
+        for my $a (sort {$args_p->{$a}{pos} <=> $args_p->{$b}{pos}}
+                       keys %$args_p) {
+            my $as = $args_p->{$a};
+            my $t = '$args{'.__squote($a).'}';
+            my $line;
+            defined($as->{pos}) or die "Error in args property for arg '$a': ".
+                "no pos defined";
+            my $pos = int($as->{pos} + 0);
+            $pos >= 0 or die "Error in args property for arg '$a': ".
+                "negative value in pos";
+            if ($as->{greedy}) {
+                $line = 'splice @args, '.$pos.', scalar(@args)-1, '.$t;
+            } else {
+                $line = '$args['.$pos."] = $t";
+            }
+            $self->push_lines("$line;");
+        }
+        $tok = $ref ? '\@args' : '@args';
+    } else {
+        die "Unknown args_as value '$v'";
+    }
+    $self->{args_token} = $tok;
 }
 
 # XXX not implemented yet
@@ -283,6 +319,8 @@ sub wrap {
             meth=>"handle_$k",
         };
         if (exists $convert->{$k0}) {
+            return [502, "Converting '$k0' is not implemented"]
+                unless $k0 =~ /\A(args_as|result_naked)\z/;
             $ha->{new}   = $convert->{$k0};
             $meta->{$k0} = $convert->{$k0};
         }
