@@ -138,14 +138,8 @@ sub handlemeta_text_markup { {} }
 sub handlemeta_is_func { {} }
 sub handlemeta_is_meth { {} }
 sub handlemeta_is_class_meth { {} }
-
-# XXX not implemented yet
-sub handlemeta_args { {} }
-sub handle_args { {} }
-
-# XXX not implemented yet
-sub handlemeta_result { {} }
-sub handle_result { {} }
+sub handlemeta_examples { {} }
+sub handlemeta_features { {} }
 
 # run before args
 sub handlemeta_args_as { {prio=>1} }
@@ -157,7 +151,7 @@ sub handle_args_as {
     my $value  = $args{value};
     my $new    = $args{new};
 
-    # args_token and arg_tokens are for argument validation later
+    # args_token and arg_tokens are for argument validation later in 'args'
 
     $self->select_section('sub_top');
 
@@ -198,6 +192,14 @@ sub handle_args_as {
     }
 }
 
+# XXX not implemented yet
+sub handlemeta_args { {} } # prio=2
+sub handle_args { {} }
+
+# XXX not implemented yet
+sub handlemeta_result { {} }
+sub handle_result { {} }
+
 sub handlemeta_result_naked { {prio=>90} }
 sub handle_result_naked {
     my ($self, %args) = @_;
@@ -217,13 +219,10 @@ sub handle_result_naked {
     }
 }
 
-sub handlemeta_deps { {prio=>2} }
+sub handlemeta_deps { {prio=>5} }
 sub handle_deps {
     # XXX require+call Perinci::Sub::DepChecker
 }
-
-sub handlemeta_examples { {} }
-sub handlemeta_features { {} }
 
 sub wrap {
     my ($self, %args) = @_;
