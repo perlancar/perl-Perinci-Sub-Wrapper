@@ -32,15 +32,15 @@ sub __squote {
 
 sub _known_sections {
     state $v = {
-        outside_top    => {order=>0, indent=>0},
-        top            => {order=>1, indent=>1},
-        before_eval    => {order=>2, indent=>1},
-        before_call    => {order=>3, indent=>2},
-        call           => {order=>4, indent=>2},
-        after_call     => {order=>5, indent=>2},
-        after_eval     => {order=>6, indent=>1},
-        bottom         => {order=>7, indent=>1},
-        outside_bottom => {order=>8, indent=>0},
+        before_sub   => {order=>0, indent=>0},
+        sub_top      => {order=>1, indent=>1},
+        before_eval  => {order=>2, indent=>1},
+        before_call  => {order=>3, indent=>2},
+        call         => {order=>4, indent=>2},
+        after_call   => {order=>5, indent=>2},
+        after_eval   => {order=>6, indent=>1},
+        sub_bottom   => {order=>7, indent=>1},
+        after_sub    => {order=>8, indent=>0},
     };
     $v;
 }
@@ -159,7 +159,7 @@ sub handle_args_as {
 
     # args_token and arg_tokens are for argument validation later
 
-    $self->select_section('top');
+    $self->select_section('sub_top');
 
     my $v = $new // $value;
     $self->push_lines("# accept args as $v");
@@ -251,11 +251,11 @@ sub wrap {
     { no strict 'refs'; ${$subname} = $sub; }
 
     $self->{args} = \%args;
-    $self->select_section('outside_top');
+    $self->select_section('before_sub');
     $self->push_lines(
         "package $comppkg;",
         'sub {');
-    $self->select_section('top');
+    $self->select_section('sub_top');
     $self->push_lines(
         'my $res;');
 
@@ -316,10 +316,10 @@ sub wrap {
     }
 
     # return result
-    $self->select_section('bottom');
+    $self->select_section('sub_bottom');
     $self->push_lines(
         '$res;');
-    $self->select_section('outside_bottom');
+    $self->select_section('after_sub');
     $self->push_lines(
         '}');
 
@@ -331,12 +331,12 @@ sub wrap {
 
     my $source = $self->_code_as_str;
     $log->tracef("wrapper source code: %s", $source);
-    #my $wrapped = eval $source;
-    #die "BUG: Wrapper code can't be compiled: $@" if $@;
+    my $wrapped = eval $source;
+    die "BUG: Wrapper code can't be compiled: $@" if $@;
 
 
     $log->tracef("<- wrap()");
-    #[200, "OK", {sub=>$wrapped, source=>$code, meta=>$meta}];
+    [200, "OK", {sub=>$wrapped, source=>$source, meta=>$meta}];
 }
 
 $SPEC{wrap_sub} = {
