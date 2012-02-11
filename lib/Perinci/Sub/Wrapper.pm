@@ -210,12 +210,12 @@ sub handle_result_naked {
         $self->select_section('sub_bottom');
         if ($args{new}) {
             $self->push_lines(
-                '# strip envelope (convert result_naked 0->1)',
+                '# strip result envelope',
                 '$res = $res->[2];',
             );
         } else {
             $self->push_lines(
-                '# envelope result (convert result_naked 1->0)',
+                '# add result envelope',
                 '$res = [200, "OK", $res];',
             );
         }
@@ -308,7 +308,7 @@ sub wrap {
             'if ($eval_err) {');
         $self->indent;
         $self->push_lines(
-            '$res = '.(
+            'return '.(
                 $meta->{result_naked} ?
                     'undef' :
                         '[500, "Function died: $eval_err"]').';');
