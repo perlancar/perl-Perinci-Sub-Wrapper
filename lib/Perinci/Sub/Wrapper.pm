@@ -203,7 +203,7 @@ sub handle_result_naked {
     my ($self, %args) = @_;
     return unless defined($args{new}) && !!$args{value} ne !!$args{new};
 
-    $self->select_section('bottom');
+    $self->select_section('sub_bottom');
     if ($args{new}) {
         $self->push_lines(
             '# strip envelope (convert result_naked 0->1)',
