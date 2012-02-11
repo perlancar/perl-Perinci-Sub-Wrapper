@@ -215,7 +215,7 @@ sub handle_args_as {
             $pos >= 0 or die "Error in args property for arg '$a': ".
                 "negative value in pos";
             if ($as->{greedy}) {
-                $line = 'splice @args, '.$pos.', scalar(@args)-1, '.$t;
+                $line = 'splice @args, '.$pos.', scalar(@args)-1, @{'.$t.'}';
             } else {
                 $line = '$args['.$pos."] = $t";
             }
@@ -374,6 +374,8 @@ sub wrap {
     my $wrapped = eval $source;
     die "BUG: Wrapper code can't be compiled: $@" if $@;
 
+    # mark the wrapper with bless, to detect double wrapping attempt
+    bless $wrapped, $comppkg;
 
     $log->tracef("<- wrap()");
     [200, "OK", {sub=>$wrapped, source=>$source, meta=>$meta}];
@@ -385,9 +387,9 @@ $SPEC{wrap_sub} = {
         'like enforcing Rinci properties',
     description => <<'_',
 
-Will wrap subroutine and bless the wrapped subroutine (by default into
-'Perinci::Sub::Wrapped') as a way of marking that the subroutine has been
-wrapped.
+Will wrap subroutine and bless the generated wrapped subroutine (by default into
+'Perinci::Sub::Wrapped') as a way of marking that the subroutine is a wrapped
+one.
 
 Will not wrap again (status 304) if input subroutine has already been wrapped
 (blessed the above way), unless 'force' argument is set to true.

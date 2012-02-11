@@ -25,9 +25,6 @@ test_wrap(
     wrap_status => 502,
 );
 
-# XXX test refuse double wrapping
-# XXX test force
-
 $sub = sub { [200, "OK", $_[0]/$_[1]] };
 $meta = {v=>1.1, args_as=>"array", args=>{a=>{pos=>0}, b=>{pos=>1}}};
 test_wrap(
@@ -273,6 +270,7 @@ test_wrap(
 $sub = sub { my %args = @_; $args{a}/sum(@{$args{b}}) };
 $meta = {v=>1.1, args=>{a=>{pos=>0}, b=>{pos=>1, greedy=>1}},
          result_naked => 1};
+my ($wrapped, $wrapped_meta);
 test_wrap(
     name => '(args_as=hash, default) greedy, no conversion',
     wrap_args => {sub => $sub, meta => $meta},
@@ -283,6 +281,25 @@ test_wrap(
 test_wrap(
     name => '(args_as=hash) greedy, conversion to array',
     wrap_args => {sub => $sub, meta => $meta, convert=>{args_as=>'array'}},
+    wrap_status => 200,
+    call_argsr => [12, 1, 2],
+    call_res => 4,
+    posttest => sub {
+        my ($wrap_res, $call_res) = @_;
+        $wrapped = $wrap_res->[2]{sub};
+        $wrapped_meta = $wrap_res->[2]{meta};
+    },
+);
+
+test_wrap(
+    name => 'force=0, double wrapping -> fail',
+    wrap_args => {sub => $wrapped, meta => $wrapped_meta},
+    wrap_status => 304,
+);
+test_wrap(
+    name => 'force=1, double wrapping, no conversion',
+    wrap_args => {sub => $wrapped, meta => $wrapped_meta,
+                  convert=>{}, force=>1},
     wrap_status => 200,
     call_argsr => [12, 1, 2],
     call_res => 4,
