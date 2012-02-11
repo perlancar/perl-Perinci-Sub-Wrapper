@@ -25,6 +25,11 @@ test_wrap(
     wrap_status => 200,
     call_argsr => [12, 3],
     call_res => [200, "OK", 4],
+    posttest => sub {
+        my ($wrap_res, $call_res) = @_;
+        my $newmeta = $wrap_res->[2]{meta};
+        #is("$newmeta", "$meta", "meta not copied when there's no conversion");
+    },
 );
 test_wrap(
     name => '(trap=1, default) call dies -> 500',
