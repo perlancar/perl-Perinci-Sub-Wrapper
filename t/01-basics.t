@@ -46,6 +46,11 @@ test_wrap(
     wrap_status => 200,
     call_args => [12, 3],
     call_res => 4,
+    posttest => sub {
+        my ($wrap_res, $call_res) = @_;
+        my $meta = $wrap_res->[2]{meta};
+        ok($meta->{result_naked}, "new meta result_naked=1");
+    },
 );
 
 $sub = sub { $_[0]/$_[1] };
@@ -59,11 +64,16 @@ test_wrap(
     call_res => 4,
 );
 test_wrap(
-    name => '(result_naked=1) (convert result_naked to 0',
+    name => '(result_naked=1) convert result_naked to 0',
     wrap_args => {sub => $sub, meta => $meta, convert=>{result_naked=>0}},
     wrap_status => 200,
     call_args => [12, 3],
     call_res => [200, "OK", 4],
+    posttest => sub {
+        my ($wrap_res, $call_res) = @_;
+        my $meta = $wrap_res->[2]{meta};
+        ok(!$meta->{result_naked}, "new meta result_naked=0");
+    },
 );
 
 DONE_TESTING:
@@ -92,10 +102,10 @@ sub test_wrap {
         }
 
         my $call_args = $test_args{call_args};
+        my $call_res;
         if ($call_args) {
-
             my $sub = $wrap_res->[2]{sub};
-            my $call_res;
+            $call_res;
             eval { $call_res = $sub->(@$call_args) };
             my $call_eval_err = $@;
             if ($test_args{call_dies}) {
@@ -116,7 +126,10 @@ sub test_wrap {
                           "call res")
                     or diag explain $call_res;
             }
+        }
 
+        if ($test_args{posttest}) {
+            $test_args{posttest}->($wrap_res, $call_res);
         }
 
         done_testing();
