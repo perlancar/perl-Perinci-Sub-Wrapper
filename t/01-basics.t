@@ -23,28 +23,28 @@ test_wrap(
     name => '(trap=1, default) call doesn\'t die',
     wrap_args => {sub => $sub, meta => $meta},
     wrap_status => 200,
-    call_args => [12, 3],
+    call_argsr => [12, 3],
     call_res => [200, "OK", 4],
 );
 test_wrap(
     name => '(trap=1, default) call dies -> 500',
     wrap_args => {sub => $sub, meta => $meta},
     wrap_status => 200,
-    call_args => [12, 0],
+    call_argsr => [12, 0],
     call_status => 500,
 );
 test_wrap(
     name => '(trap=0) call dies -> dies',
     wrap_args => {sub => $sub, meta => $meta, trap=>0},
     wrap_status => 200,
-    call_args => [12, 0],
+    call_argsr => [12, 0],
     call_dies => 1,
 );
 test_wrap(
     name => '(result_naked=0) convert result_naked to 1',
     wrap_args => {sub => $sub, meta => $meta, convert=>{result_naked=>1}},
     wrap_status => 200,
-    call_args => [12, 3],
+    call_argsr => [12, 3],
     call_res => 4,
     posttest => sub {
         my ($wrap_res, $call_res) = @_;
@@ -60,14 +60,14 @@ test_wrap(
     name => '(result_naked=1)',
     wrap_args => {sub => $sub, meta => $meta},
     wrap_status => 200,
-    call_args => [12, 3],
+    call_argsr => [12, 3],
     call_res => 4,
 );
 test_wrap(
     name => '(result_naked=1) convert result_naked to 0',
     wrap_args => {sub => $sub, meta => $meta, convert=>{result_naked=>0}},
     wrap_status => 200,
-    call_args => [12, 3],
+    call_argsr => [12, 3],
     call_res => [200, "OK", 4],
     posttest => sub {
         my ($wrap_res, $call_res) = @_;
@@ -79,7 +79,7 @@ test_wrap(
     name => '(args_as=array) convert args_as to arrayref',
     wrap_args => {sub => $sub, meta => $meta, convert=>{args_as=>'arrayref'}},
     wrap_status => 200,
-    call_args => [[12, 3]],
+    call_argsr => [[12, 3]],
     call_res => [200, "OK", 4],
     posttest => sub {
         my ($wrap_res, $call_res) = @_;
@@ -91,7 +91,7 @@ test_wrap(
     name => '(args_as=array) convert args_as to hash',
     wrap_args => {sub => $sub, meta => $meta, convert=>{args_as=>'hash'}},
     wrap_status => 200,
-    call_args => [a=>12, b=>3],
+    call_argsr => [a=>12, b=>3],
     call_res => [200, "OK", 4],
     posttest => sub {
         my ($wrap_res, $call_res) = @_;
@@ -103,7 +103,7 @@ test_wrap(
     name => '(args_as=array) convert args_as to hashref',
     wrap_args => {sub => $sub, meta => $meta, convert=>{args_as=>'hashref'}},
     wrap_status => 200,
-    call_args => [a=>12, b=>3],
+    call_argsr => [a=>12, b=>3],
     call_res => [200, "OK", 4],
     posttest => sub {
         my ($wrap_res, $call_res) = @_;
@@ -153,12 +153,12 @@ sub test_wrap {
                "wrap status is $test_args{wrap_status}");
         }
 
-        my $call_args = $test_args{call_args};
+        my $call_argsr = $test_args{call_argsr};
         my $call_res;
-        if ($call_args) {
+        if ($call_argsr) {
             my $sub = $wrap_res->[2]{sub};
             $call_res;
-            eval { $call_res = $sub->(@$call_args) };
+            eval { $call_res = $sub->(@$call_argsr) };
             my $call_eval_err = $@;
             if ($test_args{call_dies}) {
                 ok($call_eval_err, "call dies");
