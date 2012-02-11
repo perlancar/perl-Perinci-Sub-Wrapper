@@ -25,6 +25,8 @@ test_wrap(
     wrap_status => 502,
 );
 
+# test wrap arg 'trap' + wrapping 'args_as' property
+
 $sub = sub { [200, "OK", $_[0]/$_[1]] };
 $meta = {v=>1.1, args_as=>"array", args=>{a=>{pos=>0}, b=>{pos=>1}}};
 test_wrap(
@@ -89,6 +91,9 @@ test_wrap(
         ok(!$meta->{result_naked}, "new meta result_naked=0");
     },
 );
+
+# test args_as conversion
+
 test_wrap(
     name => '(args_as=array) convert args_as to arrayref',
     wrap_args => {sub => $sub, meta => $meta, convert=>{args_as=>'arrayref'}},
@@ -290,6 +295,31 @@ test_wrap(
         $wrapped_meta = $wrap_res->[2]{meta};
     },
 );
+
+# test wrapping 'deps' property
+
+$sub = sub {[200,"OK"]};
+$meta = {v=>1.1, args=>{}, deps=>{env=>"A"}};
+{
+    local $ENV{A};
+    test_wrap(
+        name => 'deps 1',
+        wrap_args => {sub => $sub, meta => $meta},
+        wrap_status => 200,
+        call_argsr => [],
+        call_status => 412,
+    );
+    $ENV{A} = 1;
+    test_wrap(
+        name => 'deps 2',
+        wrap_args => {sub => $sub, meta => $meta},
+        wrap_status => 200,
+        call_argsr => [],
+        call_status => 200,
+    );
+}
+
+# test wrap arg 'force'
 
 test_wrap(
     name => 'force=0, double wrapping -> fail',

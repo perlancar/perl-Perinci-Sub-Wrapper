@@ -16,11 +16,12 @@ our @EXPORT_OK = qw(wrap_sub);
 # VERSION
 
 our %SPEC;
-our $INDENT = " " x 4;
 
 sub new {
-    my ($class) = @_;
-    bless {}, $class;
+    my ($class, %args) = @_;
+    $args{comppkg} //= "Perinci::Sub::Wrapped";
+    $args{indent}  //= " " x 4;
+    bless \%args, $class;
 }
 
 sub __squote {
@@ -32,27 +33,40 @@ sub __squote {
 
 sub _known_sections {
     state $v = {
-        before_sub   => {order=>0, indent=>0},
-        sub_top      => {order=>1, indent=>1},
-        before_eval  => {order=>2, indent=>1},
-        before_call  => {order=>3, indent=>2},
-        call         => {order=>4, indent=>2},
-        after_call   => {order=>5, indent=>2},
-        after_eval   => {order=>6, indent=>1},
-        sub_bottom   => {order=>7, indent=>1},
-        after_sub    => {order=>8, indent=>0},
+        # reserved for setting Perl package and declaring 'sub {'
+        open_sub => {order=>0, indent=>0},
+
+        # reserved for generating 'eval {'
+        eval => {order=>20, indent=>1},
+
+        # put various checks here, from data validation, argument conversion,
+        # etc.
+        before_call => {order=>30, indent=>2},
+
+        # reserved for calling the function
+        call => {order=>50, indent=>2},
+
+        # put various post-processing here, from validating result, enveloping
+        # result, etc.
+        after_call => {order=>60, indent=>2},
+
+        # reserved for checking whether function died
+        after_eval => {order=>70, indent=>1},
+
+        # reserved for returning '$res' and the sub closing '}' line
+        close_sub => {order=>90, indent=>0},
     };
     $v;
 }
 
 sub section_empty {
     my ($self, $section) = @_;
-    !$self->{code}{$section};
+    !$self->{_codes}{$section};
 }
 
-sub _has_inside_eval {
+sub _needs_eval {
     my ($self) = @_;
-    !($self->section_empty('before_eval') &&
+    !($self->section_empty('eval') &&
           $self->section_empty('after_eval'));
 }
 
@@ -65,21 +79,21 @@ sub _check_known_section {
 sub select_section {
     my ($self, $section) = @_;
     $self->_check_known_section($section);
-    $self->{cur_section} = $section;
+    $self->{_cur_section} = $section;
     $self;
 }
 
 sub indent {
     my ($self) = @_;
-    my $section = $self->{cur_section};
-    $self->{indent}{$section}++;
+    my $section = $self->{_cur_section};
+    $self->{_indents}{$section}++;
     $self;
 }
 
 sub unindent {
     my ($self) = @_;
-    my $section = $self->{cur_section};
-    if (--$self->{indent}{$section} < 0) {
+    my $section = $self->{_cur_section};
+    if (--$self->{_indents}{$section} < 0) {
         die "BUG: over-unindent for section '$section'!";
     }
     $self;
@@ -87,20 +101,21 @@ sub unindent {
 
 sub _push_or_unshift_lines {
     my ($self, $which, @lines) = @_;
-    my $section = $self->{cur_section};
+    my $section = $self->{_cur_section};
 
-    unless ($self->{code}{$section}) {
+    unless ($self->{_codes}{$section}) {
         unshift @lines, "", "# * section: $section";
-        $self->{code}{$section} = [];
-        $self->{indent}{$section} = $self->_known_sections->{$section}{indent};
+        $self->{_codes}{$section} = [];
+        $self->{_indents}{$section} =
+            $self->_known_sections->{$section}{indent};
     }
 
-    my $indent = $self->{indent}{$section};
-    @lines = map {($INDENT x $indent) . $_} @lines;
+    my $indent = $self->{_indents}{$section};
+    @lines = map {($self->{indent} x $indent) . $_} @lines;
     if ($which eq 'push') {
-        push @{$self->{code}{$section}}, @lines;
+        push @{$self->{_codes}{$section}}, @lines;
     } else {
-        unshift @{$self->{code}{$section}}, @lines;
+        unshift @{$self->{_codes}{$section}}, @lines;
     }
     $self;
 }
@@ -122,7 +137,7 @@ sub _code_as_str {
     my $ss = $self->_known_sections;
     for my $s (sort {$ss->{$a}{order} <=> $ss->{$b}{order}} keys %$ss) {
         next if $self->section_empty($s);
-        push @lines, @{$self->{code}{$s}};
+        push @lines, @{$self->{_codes}{$s}};
     }
     join "\n", @lines;
 }
@@ -167,8 +182,10 @@ sub handle_args_as {
     # they have to undergo a round-trip to hash even when both accept 'array').
     # This will be rectified in the future.
 
+    $self->select_section('before_call');
+
     my $v = $new // $value;
-    $self->select_section('sub_top');
+    $self->push_lines('', "# accept arguments ($v)");
     if ($v eq 'hash') {
          $self->push_lines('my %args = @_;');
     } elsif ($v eq 'hashref') {
@@ -195,8 +212,8 @@ sub handle_args_as {
     }
 
     my $tok;
-    $self->select_section('before_call');
     $v = $value;
+    $self->push_lines('', "# convert arguments for wrapped function ($v)");
     if ($v eq 'hash') {
         $tok = '%args';
     } elsif ($v eq 'hashref') {
@@ -225,7 +242,7 @@ sub handle_args_as {
     } else {
         die "Unknown args_as value '$v'";
     }
-    $self->{args_token} = $tok;
+    $self->{_args_token} = $tok;
 }
 
 # XXX not implemented yet
@@ -243,24 +260,41 @@ sub handle_result_naked {
     # XXX option to check whether result is really naked
 
     if (defined($args{new}) && !!$args{value} ne !!$args{new}) {
-        $self->select_section('sub_bottom');
+        $self->select_section('after_call');
         if ($args{new}) {
             $self->push_lines(
-                '# strip result envelope',
+                '', '# strip result envelope',
                 '$res = $res->[2];',
             );
         } else {
             $self->push_lines(
-                '# add result envelope',
+                '', '# add result envelope',
                 '$res = [200, "OK", $res];',
             );
         }
     }
 }
 
-sub handlemeta_deps { {prio=>5} }
+sub handlemeta_deps { {prio=>0.5} }
 sub handle_deps {
-    # XXX require+call Perinci::Sub::DepChecker
+    my ($self, %args) = @_;
+    my $value = $args{value};
+    my $meta  = $args{meta};
+    my $v     = $self->{_var_meta};
+    $self->select_section('before_call');
+    $self->push_lines('', '# check dependencies');
+    $self->push_lines('require Perinci::Sub::DepChecker;');
+    $self->push_lines('my $deps_res = Perinci::Sub::DepChecker::check_deps($'.
+                          $v.'->{deps});');
+    if ($self->{_args}{trap}) {
+        $self->push_lines(
+            # last in eval generates warning
+            'do { $res = '.($meta->{result_naked} ? 'undef' :
+                           '[412, "Deps failed: $deps_res"]; return }').
+                               ' if $deps_res;');
+    } else {
+        $self->push_lines('die "Deps failed: $deps_res" if $deps_res;');
+    }
 }
 
 sub wrap {
@@ -273,9 +307,10 @@ sub wrap {
     $args{convert} //= {};
     my $convert  = $args{convert};
     my $force    = $args{force};
+    $args{trap} //= 1;
     my $trap     = $args{trap} // 1;
 
-    my $comppkg  = "Perinci::Sub::Wrapped";
+    my $comppkg  = $self->{comppkg};
 
     return [304, "Already wrapped"] if blessed($sub) && !$force;
 
@@ -288,12 +323,18 @@ sub wrap {
     my $subname = $comppkg . "::sub".refaddr($sub);
     { no strict 'refs'; ${$subname} = $sub; }
 
-    $self->{args} = \%args;
-    $self->select_section('before_sub');
+    # also store the meta, it is needed by the wrapped sub. sometimes the meta
+    # contains coderef and can't be dumped reliably, so we store it instead.
+    my $metaname = $comppkg . "::meta".refaddr($meta);
+    { no strict 'refs'; ${$metaname} = $meta; }
+    $self->{_var_meta} = $metaname;
+
+    $self->{_args} = \%args;
+    $self->select_section('open_sub');
     $self->push_lines(
         "package $comppkg;",
         'sub {');
-    $self->select_section('sub_top');
+    $self->indent;
     $self->push_lines(
         'my $res;');
 
@@ -336,9 +377,9 @@ sub wrap {
     }
 
     $self->select_section('call');
-    $self->push_lines('$res = $'.$subname."->(".$self->{args_token}.");");
+    $self->push_lines('$res = $'.$subname."->(".$self->{_args_token}.");");
 
-    if ($trap || $self->_has_inside_eval) {
+    if ($trap || $self->_needs_eval) {
         $self->select_section('after_eval');
         $self->push_lines(
             '};',
@@ -356,15 +397,14 @@ sub wrap {
     }
 
     # return result
-    $self->select_section('sub_bottom');
-    $self->push_lines(
-        '$res;');
-    $self->select_section('after_sub');
-    $self->push_lines(
-        '}');
+    $self->select_section('close_sub');
+    $self->indent;
+    $self->push_lines('$res;');
+    #$self->unindent;
+    $self->push_lines('}');
 
-    if ($self->_has_inside_eval) {
-        $self->select_section('before_eval');
+    if ($self->_needs_eval) {
+        $self->select_section('eval');
         $self->push_lines(
             'eval {');
     }
