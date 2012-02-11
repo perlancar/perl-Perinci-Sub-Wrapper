@@ -203,19 +203,22 @@ sub handle_result { {} }
 sub handlemeta_result_naked { {prio=>90} }
 sub handle_result_naked {
     my ($self, %args) = @_;
-    return unless defined($args{new}) && !!$args{value} ne !!$args{new};
 
-    $self->select_section('sub_bottom');
-    if ($args{new}) {
-        $self->push_lines(
-            '# strip envelope (convert result_naked 0->1)',
-            '$res = $res->[2];',
-        );
-    } else {
-        $self->push_lines(
-            '# envelope result (convert result_naked 1->0)',
-            '$res = [200, "OK", $res];',
-        );
+    # XXX option to check whether result is really naked
+
+    if (defined($args{new}) && !!$args{value} ne !!$args{new}) {
+        $self->select_section('sub_bottom');
+        if ($args{new}) {
+            $self->push_lines(
+                '# strip envelope (convert result_naked 0->1)',
+                '$res = $res->[2];',
+            );
+        } else {
+            $self->push_lines(
+                '# envelope result (convert result_naked 1->0)',
+                '$res = [200, "OK", $res];',
+            );
+        }
     }
 }
 
