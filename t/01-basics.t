@@ -28,6 +28,7 @@ test_wrap(
     posttest => sub {
         my ($wrap_res, $call_res) = @_;
         my $newmeta = $wrap_res->[2]{meta};
+        # currently not the case, we add default args_as, result_naked, etc.
         #is("$newmeta", "$meta", "meta not copied when there's no conversion");
     },
 );
