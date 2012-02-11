@@ -75,6 +75,58 @@ test_wrap(
         ok(!$meta->{result_naked}, "new meta result_naked=0");
     },
 );
+test_wrap(
+    name => '(args_as=array) convert args_as to arrayref',
+    wrap_args => {sub => $sub, meta => $meta, convert=>{args_as=>'arrayref'}},
+    wrap_status => 200,
+    call_args => [[12, 3]],
+    call_res => [200, "OK", 4],
+    posttest => sub {
+        my ($wrap_res, $call_res) = @_;
+        my $meta = $wrap_res->[2]{meta};
+        ok(!$meta->{args_as}, "new meta args_as=arrayref");
+    },
+);
+test_wrap(
+    name => '(args_as=array) convert args_as to hash',
+    wrap_args => {sub => $sub, meta => $meta, convert=>{args_as=>'hash'}},
+    wrap_status => 200,
+    call_args => [a=>12, b=>3],
+    call_res => [200, "OK", 4],
+    posttest => sub {
+        my ($wrap_res, $call_res) = @_;
+        my $meta = $wrap_res->[2]{meta};
+        ok(!$meta->{args_as}, "new meta args_as=hash");
+    },
+);
+test_wrap(
+    name => '(args_as=array) convert args_as to hashref',
+    wrap_args => {sub => $sub, meta => $meta, convert=>{args_as=>'hashref'}},
+    wrap_status => 200,
+    call_args => [a=>12, b=>3],
+    call_res => [200, "OK", 4],
+    posttest => sub {
+        my ($wrap_res, $call_res) = @_;
+        my $meta = $wrap_res->[2]{meta};
+        ok(!$meta->{args_as}, "new meta args_as=hashref");
+    },
+);
+
+# XXX args_as arrayref
+# XXX convert args_as arrayref -> array
+# XXX convert args_as arrayref -> hash
+# XXX convert args_as arrayref -> hashref
+
+# XXX args_as hash
+# XXX convert args_as hash -> array
+# XXX convert args_as hash -> arrayref
+# XXX convert args_as hash -> hashref
+
+# XXX args_as hashref
+# XXX convert args_as hashref -> array
+# XXX convert args_as hashref -> arrayref
+# XXX convert args_as hashref -> hash
+
 
 DONE_TESTING:
 done_testing();
