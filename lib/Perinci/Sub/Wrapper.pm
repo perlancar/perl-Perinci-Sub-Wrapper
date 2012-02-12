@@ -5,10 +5,6 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
-use Data::Dump::OneLine qw(dump1);
-use Data::Dumper;
-use Scalar::Util qw(blessed refaddr);
-
 require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
@@ -25,6 +21,7 @@ sub new {
 }
 
 sub __squote {
+    require Data::Dumper;
     my $res = Data::Dumper->new([shift])->
         Purity(1)->Terse(1)->Deepcopy(1)->Dump;
     chomp $res;
@@ -33,28 +30,35 @@ sub __squote {
 
 sub _known_sections {
     state $v = {
-        # reserved for setting Perl package and declaring 'sub {'
-        open_sub => {order=>0, indent=>0},
+        # reserved by wrapper for setting Perl package and declaring 'sub {'
+        OPEN_SUB => {order=>0, indent=>0},
 
-        # reserved for generating 'eval {'
-        eval => {order=>20, indent=>1},
+        # for handlers to put stuffs right before eval. for example, 'timeout'
+        # uses this to set ALRM signal handler.
+        before_eval => {order=>10, indent=>1},
 
-        # put various checks here, from data validation, argument conversion,
-        # etc.
+        # reserved by wrapper for generating 'eval {'
+        OPEN_EVAL => {order=>20, indent=>1},
+
+        # for handlers to put various checks before calling the wrapped
+        # function, from data validation, argument conversion, etc.
         before_call => {order=>30, indent=>2},
 
-        # reserved for calling the function
-        call => {order=>50, indent=>2},
+        # reserved by the wrapper for calling the function
+        CALL => {order=>50, indent=>2},
 
-        # put various post-processing here, from validating result, enveloping
-        # result, etc.
+        # for handlers to put various things after calling, from validating
+        # result, enveloping result, etc.
         after_call => {order=>60, indent=>2},
 
-        # reserved for checking whether function died
-        after_eval => {order=>70, indent=>1},
+        # reserved by wrapper to put eval end '}' and capturing $@ in $eval_err
+        CLOSE_EVAL => {order=>70, indent=>1},
+
+        # for handlers to put checks against $eval_err
+        after_eval => {order=>80, indent=>1},
 
         # reserved for returning '$res' and the sub closing '}' line
-        close_sub => {order=>90, indent=>0},
+        CLOSE_SUB => {order=>90, indent=>0},
     };
     $v;
 }
@@ -66,7 +70,7 @@ sub section_empty {
 
 sub _needs_eval {
     my ($self) = @_;
-    !($self->section_empty('eval') &&
+    !($self->section_empty('before_eval') &&
           $self->section_empty('after_eval'));
 }
 
@@ -125,11 +129,11 @@ sub push_lines {
     $self->_push_or_unshift_lines("push", @lines);
 }
 
-# so far never actually used
-sub unshift_lines {
-    my ($self, @lines) = @_;
-    $self->_push_or_unshift_lines("unshift", @lines);
-}
+# so far not needed yet, we adjust sections instead
+#sub unshift_lines {
+#    my ($self, @lines) = @_;
+#    $self->_push_or_unshift_lines("unshift", @lines);
+#}
 
 sub _code_as_str {
     my ($self) = @_;
@@ -298,6 +302,8 @@ sub handle_deps {
 }
 
 sub wrap {
+    require Scalar::Util;
+
     my ($self, %args) = @_;
     $log->tracef("-> wrap(%s)", \%args);
 
@@ -312,7 +318,7 @@ sub wrap {
 
     my $comppkg  = $self->{comppkg};
 
-    return [304, "Already wrapped"] if blessed($sub) && !$force;
+    return [304, "Already wrapped"] if Scalar::Util::blessed($sub) && !$force;
 
     my $v = $meta->{v} // 1.0;
     return [412, "Unsupported metadata version ($v), only 1.1 supported"]
@@ -320,17 +326,22 @@ sub wrap {
 
     # put the sub in a named variable, so it can be accessed by the wrapper
     # code.
-    my $subname = $comppkg . "::sub".refaddr($sub);
+    my $subname = $comppkg . "::sub".Scalar::Util::refaddr($sub);
     { no strict 'refs'; ${$subname} = $sub; }
 
     # also store the meta, it is needed by the wrapped sub. sometimes the meta
     # contains coderef and can't be dumped reliably, so we store it instead.
-    my $metaname = $comppkg . "::meta".refaddr($meta);
+    my $metaname = $comppkg . "::meta".Scalar::Util::refaddr($meta);
     { no strict 'refs'; ${$metaname} = $meta; }
     $self->{_var_meta} = $metaname;
 
+    # reset work variables
+    $self->{_cur_section} = undef;
+    $self->{_indents} = {};
+    $self->{_codes} = {};
+
     $self->{_args} = \%args;
-    $self->select_section('open_sub');
+    $self->select_section('OPEN_SUB');
     $self->push_lines(
         "package $comppkg;",
         'sub {');
@@ -376,35 +387,35 @@ sub wrap {
         $self->$meth(args=>\%args, meta=>$meta, %$ha);
     }
 
-    $self->select_section('call');
+    $self->select_section('CALL');
     $self->push_lines('$res = $'.$subname."->(".$self->{_args_token}.");");
 
     if ($trap || $self->_needs_eval) {
-        $self->select_section('after_eval');
+        $self->select_section('CLOSE_EVAL');
         $self->push_lines(
             '};',
-            'my $eval_err = $@;',
-            'if ($eval_err) {');
-        $self->indent;
+            'my $eval_err = $@;');
+        # _needs_eval will automatically be enabled here, due after_eval being
+        # filled
+        $self->select_section('after_eval');
         $self->push_lines(
-            'return '.(
+            'return ('.(
                 $meta->{result_naked} ?
                     'undef' :
-                        '[500, "Function died: $eval_err"]').';');
-        $self->unindent;
-        $self->push_lines(
-            '}');
+                        '[500, "Function died: $eval_err"]').') '.
+                            'if $eval_err;');
     }
 
     # return result
-    $self->select_section('close_sub');
+    $self->select_section('CLOSE_SUB');
     $self->indent;
-    $self->push_lines('$res;');
+    $self->push_lines('$res; }');
+    # hm, indent + unindent doesn't work properly here?
     #$self->unindent;
-    $self->push_lines('}');
+    #$self->push_lines('}');
 
     if ($self->_needs_eval) {
-        $self->select_section('eval');
+        $self->select_section('OPEN_EVAL');
         $self->push_lines(
             'eval {');
     }
