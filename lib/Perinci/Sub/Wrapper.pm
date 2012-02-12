@@ -536,7 +536,8 @@ sub wrap_sub {
 Perinci::Sub::Wrapper is an extensible subroutine wrapping framework. It works
 by creating a single "large" wrapper function from a composite bits of code,
 instead of using multiple small wrappers (a la Python's decorator). The
-single-wrapper approach has the benefit of smaller function call overhead.
+single-wrapper approach has the benefit of smaller function call overhead. You
+can still wrap multiple times if needed.
 
 This module is used to enforce Rinci properties, e.g. C<args> (by performing
 schema validation before calling the function), C<timeout> (by doing function
