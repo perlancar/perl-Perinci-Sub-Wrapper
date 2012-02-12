@@ -143,11 +143,10 @@ sub push_lines {
     $self->_push_or_unshift_lines("push", @lines);
 }
 
-# so far not needed yet, we adjust sections instead
-#sub unshift_lines {
-#    my ($self, @lines) = @_;
-#    $self->_push_or_unshift_lines("unshift", @lines);
-#}
+sub unshift_lines {
+    my ($self, @lines) = @_;
+    $self->_push_or_unshift_lines("unshift", @lines);
+}
 
 sub _code_as_str {
     my ($self) = @_;

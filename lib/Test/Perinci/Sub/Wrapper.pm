@@ -10,6 +10,8 @@ use Test::More 0.96;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(test_wrap);
 
+# VERSION
+
 sub test_wrap {
     my %test_args = @_;
     my $wrap_args = $test_args{wrap_args} or die "BUG: wrap_args not defined";
