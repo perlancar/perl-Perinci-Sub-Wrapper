@@ -19,7 +19,7 @@ test_wrap(
     wrap_status => 412,
 );
 
-$meta = {v=>1.1, deps=>{}};
+$meta = {v=>1.1};
 test_wrap(
     name => 'unsupported conversion -> fail',
     wrap_args => {sub => $sub, meta => $meta, convert=>{deps=>{}}},

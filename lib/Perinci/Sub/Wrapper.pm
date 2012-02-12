@@ -329,6 +329,11 @@ sub wrap {
 
     return [304, "Already wrapped"] if Scalar::Util::blessed($sub) && !$force;
 
+    # add properties from convert, if not yet mentioned in meta
+    for (keys %$convert) {
+        $meta->{$_} = undef unless exists $meta->{$_};
+    }
+
     my $v = $meta->{v} // 1.0;
     return [412, "Unsupported metadata version ($v), only 1.1 supported"]
         unless $v == 1.1;
