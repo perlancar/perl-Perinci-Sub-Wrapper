@@ -1,5 +1,13 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.08     2012-02-12
+
+         [BUG FIXES]
+
+         - Convert keys are now respected even though meta does not have that
+           key.
+
+
 0.07     2012-02-12
 
          - Add (or re-enable) unshift_lines()
