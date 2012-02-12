@@ -522,8 +522,8 @@ sub wrap_sub {
 =head1 SYNOPSIS
 
  use Perinci::Sub::Wrapper qw(wrap_sub);
- my $res = wrap_sub(sub => sub {die "test\n"}, ...);
- my $wrapped = $res->[2]{wrapped};
+ my $res = wrap_sub(sub => sub {die "test\n"}, meta=>{...});
+ my ($wrapped, $meta) = ($res->[2]{sub}, $res->[2]{meta});
  $wrapped->(); # call the wrapped function
 
 
