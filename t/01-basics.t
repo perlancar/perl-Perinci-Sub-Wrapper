@@ -364,7 +364,6 @@ sub test_wrap {
         my $call_res;
         if ($call_argsr) {
             my $sub = $wrap_res->[2]{sub};
-            $call_res;
             eval { $call_res = $sub->(@$call_argsr) };
             my $call_eval_err = $@;
             if ($test_args{call_dies}) {

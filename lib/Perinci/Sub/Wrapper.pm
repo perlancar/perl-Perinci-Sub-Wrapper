@@ -80,6 +80,20 @@ sub _check_known_section {
     $ks->{$section} or die "BUG: Unknown code section '$section'";
 }
 
+sub _errif {
+    my ($self, $c_status, $c_msg, $c_cond) = @_;
+    $self->push_lines("if ($c_cond) {");
+    $self->indent;
+    $self->push_lines(
+        # we set $res here when we return from inside the eval block
+        '$res = ' . (
+            $self->{_meta}{result_naked} ?
+                'undef' : "[$c_status, $c_msg]") . ';',
+        'return $res;');
+    $self->unindent;
+    $self->push_lines('}');
+}
+
 sub select_section {
     my ($self, $section) = @_;
     $self->_check_known_section($section);
@@ -165,10 +179,10 @@ sub handlemeta_args_as { {prio=>1} }
 sub handle_args_as {
     my ($self, %args) = @_;
 
-    my $meta   = $args{meta};
-    my $args_p = $meta->{args} // {};
     my $value  = $args{value};
     my $new    = $args{new};
+    my $meta   = $self->{_meta};
+    my $args_p = $meta->{args} // {};
 
     # We support conversion of arguments between hash/hashref/array/arrayref. To
     # make it simple, currently the algorithm is as follow: we first form the
@@ -283,7 +297,7 @@ sub handlemeta_deps { {prio=>0.5} }
 sub handle_deps {
     my ($self, %args) = @_;
     my $value = $args{value};
-    my $meta  = $args{meta};
+    my $meta  = $self->{_meta};
     my $v     = $self->{_var_meta};
     $self->select_section('before_call');
     $self->push_lines('', '# check dependencies');
@@ -291,11 +305,7 @@ sub handle_deps {
     $self->push_lines('my $deps_res = Perinci::Sub::DepChecker::check_deps($'.
                           $v.'->{deps});');
     if ($self->{_args}{trap}) {
-        $self->push_lines(
-            # last in eval generates warning
-            'do { $res = '.($meta->{result_naked} ? 'undef' :
-                           '[412, "Deps failed: $deps_res"]; return }').
-                               ' if $deps_res;');
+        $self->_errif(412, '"Deps failed: $deps_res"', '$deps_res');
     } else {
         $self->push_lines('die "Deps failed: $deps_res" if $deps_res;');
     }
@@ -335,12 +345,14 @@ sub wrap {
     { no strict 'refs'; ${$metaname} = $meta; }
     $self->{_var_meta} = $metaname;
 
-    # reset work variables
+    # reset work variables. we haven't tested this yet because we expect the
+    # object to be used only for one-off wrapping, via wrap_sub().
     $self->{_cur_section} = undef;
     $self->{_indents} = {};
     $self->{_codes} = {};
 
     $self->{_args} = \%args;
+    $self->{_meta} = $meta;
     $self->select_section('OPEN_SUB');
     $self->push_lines(
         "package $comppkg;",
@@ -398,12 +410,7 @@ sub wrap {
         # _needs_eval will automatically be enabled here, due after_eval being
         # filled
         $self->select_section('after_eval');
-        $self->push_lines(
-            'return ('.(
-                $meta->{result_naked} ?
-                    'undef' :
-                        '[500, "Function died: $eval_err"]').') '.
-                            'if $eval_err;');
+        $self->_errif(500, '"Function died: $eval_err"', '$eval_err');
     }
 
     # return result
