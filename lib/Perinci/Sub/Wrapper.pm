@@ -323,7 +323,7 @@ sub wrap {
     my $convert  = $args{convert};
     my $force    = $args{force};
     $args{trap} //= 1;
-    my $trap     = $args{trap} // 1;
+    my $trap     = $args{trap};
 
     my $comppkg  = $self->{comppkg};
 
