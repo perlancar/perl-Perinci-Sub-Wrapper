@@ -175,7 +175,7 @@ sub handlemeta_examples { {} }
 sub handlemeta_features { {} }
 
 # run before args
-sub handlemeta_args_as { {prio=>1} }
+sub handlemeta_args_as { {prio=>1, convert=>1} }
 sub handle_args_as {
     my ($self, %args) = @_;
 
@@ -264,14 +264,14 @@ sub handle_args_as {
 }
 
 # XXX not implemented yet
-sub handlemeta_args { {} } # prio=2
+sub handlemeta_args { {} }
 sub handle_args { {} }
 
 # XXX not implemented yet
 sub handlemeta_result { {} }
 sub handle_result { {} }
 
-sub handlemeta_result_naked { {prio=>90} }
+sub handlemeta_result_naked { {prio=>90, convert=>1} }
 sub handle_result_naked {
     my ($self, %args) = @_;
 
@@ -384,7 +384,7 @@ sub wrap {
         };
         if (exists $convert->{$k0}) {
             return [502, "Converting '$k0' is not implemented"]
-                unless $k0 =~ /\A(args_as|result_naked)\z/;
+                unless $hm->{convert};
             $ha->{new}   = $convert->{$k0};
             $meta->{$k0} = $convert->{$k0};
         }
