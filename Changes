@@ -1,5 +1,13 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.07     2012-02-12
+
+         - Add (or re-enable) unshift_lines()
+
+         - Extract test routine to Test::Perinci::Sub::Wrapper to make it usable
+           from other Perinci-Sub-property-* distributions.
+
+
 0.06     2012-02-12
 
          Rename distribution from Sub-Spec-Wrapper to Perinci-Sub-Wrapper.
