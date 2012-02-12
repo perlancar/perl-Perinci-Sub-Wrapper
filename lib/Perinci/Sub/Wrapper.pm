@@ -383,7 +383,7 @@ sub wrap {
             meth=>"handle_$k",
         };
         if (exists $convert->{$k0}) {
-            return [502, "Converting '$k0' is not implemented"]
+            return [502, "Property '$k0' does not support conversion"]
                 unless $hm->{convert};
             $ha->{new}   = $convert->{$k0};
             $meta->{$k0} = $convert->{$k0};
