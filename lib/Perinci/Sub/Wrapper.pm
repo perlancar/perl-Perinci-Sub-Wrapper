@@ -31,34 +31,34 @@ sub __squote {
 sub _known_sections {
     state $v = {
         # reserved by wrapper for setting Perl package and declaring 'sub {'
-        OPEN_SUB => {order=>0, indent=>0},
+        OPEN_SUB => {order=>0},
 
         # for handlers to put stuffs right before eval. for example, 'timeout'
         # uses this to set ALRM signal handler.
-        before_eval => {order=>10, indent=>1},
+        before_eval => {order=>10},
 
         # reserved by wrapper for generating 'eval {'
-        OPEN_EVAL => {order=>20, indent=>1},
+        OPEN_EVAL => {order=>20},
 
         # for handlers to put various checks before calling the wrapped
         # function, from data validation, argument conversion, etc.
-        before_call => {order=>30, indent=>2},
+        before_call => {order=>30},
 
         # reserved by the wrapper for calling the function
-        CALL => {order=>50, indent=>2},
+        CALL => {order=>50},
 
         # for handlers to put various things after calling, from validating
         # result, enveloping result, etc.
-        after_call => {order=>60, indent=>2},
+        after_call => {order=>60},
 
         # reserved by wrapper to put eval end '}' and capturing $@ in $eval_err
-        CLOSE_EVAL => {order=>70, indent=>1},
+        CLOSE_EVAL => {order=>70},
 
         # for handlers to put checks against $eval_err
-        after_eval => {order=>80, indent=>1},
+        after_eval => {order=>80},
 
         # reserved for returning '$res' and the sub closing '}' line
-        CLOSE_SUB => {order=>90, indent=>0},
+        CLOSE_SUB => {order=>90},
     };
     $v;
 }
@@ -104,16 +104,16 @@ sub select_section {
 sub indent {
     my ($self) = @_;
     my $section = $self->{_cur_section};
-    $self->{_indents}{$section}++;
+    $self->{_codes}{$section} //= undef;
+    $self->{_levels}{$section}++;
     $self;
 }
 
 sub unindent {
     my ($self) = @_;
     my $section = $self->{_cur_section};
-    if (--$self->{_indents}{$section} < 0) {
-        die "BUG: over-unindent for section '$section'!";
-    }
+    $self->{_codes}{$section} //= undef;
+    $self->{_levels}{$section}--;
     $self;
 }
 
@@ -121,15 +121,13 @@ sub _push_or_unshift_lines {
     my ($self, $which, @lines) = @_;
     my $section = $self->{_cur_section};
 
-    unless ($self->{_codes}{$section}) {
+    unless (exists $self->{_codes}{$section}) {
         unshift @lines, "", "# * section: $section";
         $self->{_codes}{$section} = [];
-        $self->{_indents}{$section} =
-            $self->_known_sections->{$section}{indent};
+        $self->{_levels}{$section} = 0;
     }
 
-    my $indent = $self->{_indents}{$section};
-    @lines = map {($self->{indent} x $indent) . $_} @lines;
+    @lines = map {[$self->{_levels}{$section}, $_]} @lines;
     if ($which eq 'push') {
         push @{$self->{_codes}{$section}}, @lines;
     } else {
@@ -152,9 +150,19 @@ sub _code_as_str {
     my ($self) = @_;
     my @lines;
     my $ss = $self->_known_sections;
-    for my $s (sort {$ss->{$a}{order} <=> $ss->{$b}{order}} keys %$ss) {
+    my $prev_section_level = 0;
+    my $i = 0;
+    for my $s (sort {$ss->{$a}{order} <=> $ss->{$b}{order}}
+                   keys %$ss) {
         next if $self->section_empty($s);
-        push @lines, @{$self->{_codes}{$s}};
+        $i++;
+        for my $l (@{ $self->{_codes}{$s} }) {
+            $l->[0] += $prev_section_level;
+            die "BUG: Negative indent level in line $i: '$l'"
+                if $l->[0] < 0;
+            push @lines, ($self->{indent} x $l->[0]) . $l->[1];
+        }
+        $prev_section_level += $self->{_levels}{$s};
     }
     join "\n", @lines;
 }
@@ -352,7 +360,7 @@ sub wrap {
     # reset work variables. we haven't tested this yet because we expect the
     # object to be used only for one-off wrapping, via wrap_sub().
     $self->{_cur_section} = undef;
-    $self->{_indents} = {};
+    $self->{_levels} = {};
     $self->{_codes} = {};
 
     $self->{_args} = \%args;
@@ -408,7 +416,9 @@ sub wrap {
 
     if ($trap || $self->_needs_eval) {
         $self->select_section('CLOSE_EVAL');
+        $self->unindent;
         $self->push_lines(
+            '',
             '};',
             'my $eval_err = $@;');
         # _needs_eval will automatically be enabled here, due after_eval being
@@ -419,16 +429,18 @@ sub wrap {
 
     # return result
     $self->select_section('CLOSE_SUB');
-    $self->indent;
-    $self->push_lines('$res; }');
+    $self->push_lines('$res;');
+    $self->unindent;
+    $self->push_lines('}');
+
     # hm, indent + unindent doesn't work properly here?
     #$self->unindent;
     #$self->push_lines('}');
 
     if ($self->_needs_eval) {
         $self->select_section('OPEN_EVAL');
-        $self->push_lines(
-            'eval {');
+        $self->push_lines('eval {');
+        $self->indent;
     }
 
     my $source = $self->_code_as_str;
