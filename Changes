@@ -1,5 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.09     2012-02-13
+
+         [BUG FIXES]
+
+         - Fix indenting in generated code.
+
+
 0.08     2012-02-12
 
          [BUG FIXES]
