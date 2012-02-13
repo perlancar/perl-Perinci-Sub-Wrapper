@@ -1,5 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.10     2012-02-13
+
+         [NEW FEATURES]
+
+         - Add wrap option 'compile'.
+
+
 0.09     2012-02-13
 
          [BUG FIXES]
