@@ -117,7 +117,7 @@ sub unindent {
     $self;
 }
 
-sub _push_or_unshift_lines {
+sub push_lines {
     my ($self, $which, @lines) = @_;
     my $section = $self->{_cur_section};
 
@@ -128,22 +128,8 @@ sub _push_or_unshift_lines {
     }
 
     @lines = map {[$self->{_levels}{$section}, $_]} @lines;
-    if ($which eq 'push') {
-        push @{$self->{_codes}{$section}}, @lines;
-    } else {
-        unshift @{$self->{_codes}{$section}}, @lines;
-    }
+    push @{$self->{_codes}{$section}}, @lines;
     $self;
-}
-
-sub push_lines {
-    my ($self, @lines) = @_;
-    $self->_push_or_unshift_lines("push", @lines);
-}
-
-sub unshift_lines {
-    my ($self, @lines) = @_;
-    $self->_push_or_unshift_lines("unshift", @lines);
 }
 
 sub _code_as_str {
@@ -533,7 +519,7 @@ sub wrap_sub {
 1;
 # ABSTRACT: A multi-purpose subroutine wrapping framework
 
-=for Pod::Coverage ^(new|handle(meta)?_.+|convert(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|select_section|(push|unshift)_lines)$
+=for Pod::Coverage ^(new|handle(meta)?_.+|convert(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|select_section|push_lines)$
 
 =head1 SYNOPSIS
 
