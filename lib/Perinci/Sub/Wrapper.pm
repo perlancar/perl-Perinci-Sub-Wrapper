@@ -223,8 +223,9 @@ sub handle_args_as {
     }
 
     my $tok;
+    $self->push_lines('', "# convert arguments for wrapped function ($value)")
+        unless $v eq $value;
     $v = $value;
-    $self->push_lines('', "# convert arguments for wrapped function ($v)");
     if ($v eq 'hash') {
         $tok = '%args';
     } elsif ($v eq 'hashref') {
