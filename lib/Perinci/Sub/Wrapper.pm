@@ -118,7 +118,7 @@ sub unindent {
 }
 
 sub push_lines {
-    my ($self, $which, @lines) = @_;
+    my ($self, @lines) = @_;
     my $section = $self->{_cur_section};
 
     unless (exists $self->{_codes}{$section}) {
@@ -318,6 +318,8 @@ sub wrap {
     my $force    = $args{force};
     $args{trap} //= 1;
     my $trap     = $args{trap};
+    $args{compile} //= 1;
+    my $compile  = $args{compile};
 
     my $comppkg  = $self->{comppkg};
 
@@ -431,14 +433,19 @@ sub wrap {
 
     my $source = $self->_code_as_str;
     $log->tracef("wrapper source code: %s", $source);
-    my $wrapped = eval $source;
-    die "BUG: Wrapper code can't be compiled: $@" if $@;
+    my $result = {source=>$source};
+    if ($compile) {
+        my $wrapped = eval $source;
+        die "BUG: Wrapper code can't be compiled: $@" if $@;
 
-    # mark the wrapper with bless, to detect double wrapping attempt
-    bless $wrapped, $comppkg;
+        # mark the wrapper with bless, to detect double wrapping attempt
+        bless $wrapped, $comppkg;
 
+        $result->{sub}  = $wrapped;
+        $result->{meta} = $meta;
+    }
     $log->tracef("<- wrap()");
-    [200, "OK", {sub=>$wrapped, source=>$source, meta=>$meta}];
+    [200, "OK", $result];
 }
 
 $SPEC{wrap_sub} = {
@@ -463,7 +470,7 @@ Aside from wrapping the subroutine, will also create a new metadata for it. The
 new metadata is a shallow copy of the original, with most properties usually
 untouched. Only certain properties will be changed to match the new subroutine
 behavior. For example, if you set a different 'args_as' or 'result_naked' in
-'opts', then the new metadata will carry the new values.
+'convert', then the new metadata will carry the new values.
 
 _
         schema=>['hash*'=>[keys=>{
@@ -506,6 +513,17 @@ _
 If set to true, will wrap call using an eval {} block and return 500 /undef if
 function dies. Note that if some other properties requires an eval block (like
 'timeout') an eval block will be added regardless of this parameter.
+
+_
+            default => 1,
+        },
+        compile => {
+            schema => 'bool',
+            summary => 'Whether to compile the generated wrapper',
+            description => <<'_',
+
+Can be set to 0 to not actually wrap but just return the generated wrapper
+source code.
 
 _
             default => 1,
