@@ -359,7 +359,7 @@ sub wrap {
         'sub {');
     $self->indent;
     $self->push_lines(
-        'my $res;');
+        'my ($res, $eval_err);');
 
     # XXX validate metadata first to filter invalid properties, also to fill
     # default values. currently this is a quick/temp code.
@@ -408,7 +408,7 @@ sub wrap {
         $self->push_lines(
             '',
             '};',
-            'my $eval_err = $@;');
+            '$eval_err = $@;');
         # _needs_eval will automatically be enabled here, due after_eval being
         # filled
         $self->select_section('after_eval');
