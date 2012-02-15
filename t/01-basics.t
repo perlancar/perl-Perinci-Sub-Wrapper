@@ -320,17 +320,10 @@ $meta = {v=>1.1, args=>{}, deps=>{env=>"A"}};
     );
 }
 
-# test wrap arg 'force'
-
 test_wrap(
-    name => 'force=0, double wrapping -> fail',
-    wrap_args => {sub => $wrapped, meta => $wrapped_meta},
-    wrap_status => 304,
-);
-test_wrap(
-    name => 'force=1, double wrapping, no conversion',
+    name => 'double wrapping, no conversion',
     wrap_args => {sub => $wrapped, meta => $wrapped_meta,
-                  convert=>{}, force=>1},
+                  convert=>{}},
     wrap_status => 200,
     call_argsr => [12, 1, 2],
     call_res => 4,

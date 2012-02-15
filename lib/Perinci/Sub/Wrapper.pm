@@ -316,15 +316,12 @@ sub wrap {
     my $meta     = { %{$args{meta}} };
     $args{convert} //= {};
     my $convert  = $args{convert};
-    my $force    = $args{force};
     $args{trap} //= 1;
     my $trap     = $args{trap};
     $args{compile} //= 1;
     my $compile  = $args{compile};
 
     my $comppkg  = $self->{comppkg};
-
-    return [304, "Already wrapped"] if Scalar::Util::blessed($sub) && !$force;
 
     # add properties from convert, if not yet mentioned in meta
     for (keys %$convert) {
@@ -459,9 +456,6 @@ Will wrap subroutine and bless the generated wrapped subroutine (by default into
 'Perinci::Sub::Wrapped') as a way of marking that the subroutine is a wrapped
 one.
 
-Will not wrap again (status 304) if input subroutine has already been wrapped
-(blessed the above way), unless 'force' argument is set to true.
-
 _
     result => {
         summary => 'The wrapped subroutine along with its new metadata',
@@ -499,12 +493,6 @@ _
 So far you can convert 'args_as' and 'result_naked'.
 
 _
-        },
-        force => {
-            schema => 'bool',
-            summary => 'Whether to force wrap again even '.
-                'when sub has been wrapped',
-            default => 0,
         },
         trap => {
             schema => 'bool',
