@@ -8,6 +8,7 @@ use Test::More 0.96;
 use List::Util qw(sum);
 use Perinci::Sub::Wrapper qw(wrap_sub);
 use Test::Perinci::Sub::Wrapper qw(test_wrap);
+use Scalar::Util qw(blessed);
 
 my ($sub, $meta);
 
@@ -297,6 +298,20 @@ test_wrap(
     },
 );
 
+# test blessed and double wrapping
+
+ok(blessed($wrapped), 'generated wrapper is blessed');
+ok(!blessed($sub), 'original input subroutine not blessed');
+
+test_wrap(
+    name => 'double wrapping, no conversion',
+    wrap_args => {sub => $wrapped, meta => $wrapped_meta,
+                  convert=>{}},
+    wrap_status => 200,
+    call_argsr => [12, 1, 2],
+    call_res => 4,
+);
+
 # test wrapping 'deps' property
 
 $sub = sub {[200,"OK"]};
@@ -319,15 +334,6 @@ $meta = {v=>1.1, args=>{}, deps=>{env=>"A"}};
         call_status => 200,
     );
 }
-
-test_wrap(
-    name => 'double wrapping, no conversion',
-    wrap_args => {sub => $wrapped, meta => $wrapped_meta,
-                  convert=>{}},
-    wrap_status => 200,
-    call_argsr => [12, 1, 2],
-    call_res => 4,
-);
 
 DONE_TESTING:
 done_testing();
