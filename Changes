@@ -1,5 +1,14 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.12     2012-02-15
+
+         [REMOVED FEATURES]
+
+         - Remove 'force' argument. wrap_sub() still mark wrapping by blessing
+           the generated wrapper, but will gladly double wrap. I believe caching
+           should be done in the upper layers.
+
+
 0.11     2012-02-13
 
          [ETC]
