@@ -257,13 +257,48 @@ sub handle_args_as {
     $self->{_args_token} = $tok;
 }
 
-# XXX not implemented yet
-sub handlemeta_args { {} }
-sub handle_args { {} }
+sub handlemeta_args { {prio=>10, convert=>1} }
+sub handle_args {
+    require Data::Sah;
+
+    my ($self, %args) = @_;
+
+    my $v = $self->{_meta}{args};
+    return unless $v;
+
+    # normalize schema
+    if ($self->{_args}{normalize_schemas}) {
+        for my $k (keys %$v) {
+            if ($v->{$k}{schema}) {
+                $v->{$k}{schema} =
+                    Data::Sah::normalize_schema($v->{$k}{schema});
+            }
+        }
+    }
+
+    # XXX validation not implemented yet
+
+}
 
 # XXX not implemented yet
-sub handlemeta_result { {} }
-sub handle_result { {} }
+sub handlemeta_result { {prio=>50, convert=>1} }
+sub handle_result {
+    require Data::Sah;
+
+    my ($self, %args) = @_;
+
+    my $v = $self->{_meta}{result};
+    return unless $v;
+
+    # normalize schema
+    if ($self->{_args}{normalize_schemas}) {
+        if ($v->{schema}) {
+            $v->{schema} = Data::Sah::normalize_schema($v->{schema});
+        }
+    }
+
+    # XXX validation not implemented yet
+}
 
 sub handlemeta_result_naked { {prio=>90, convert=>1} }
 sub handle_result_naked {
@@ -306,6 +341,7 @@ sub handle_deps {
 }
 
 sub wrap {
+    require Data::Clone;
     require Scalar::Util;
 
     my ($self, %args) = @_;
@@ -313,13 +349,15 @@ sub wrap {
 
     my $sub      = $args{sub} or return [400, "Please specify sub"];
     $args{meta} or return [400, "Please specify meta"];
-    my $meta     = { %{$args{meta}} };
+    my $meta     = Data::Clone::clone($args{meta});
     $args{convert} //= {};
     my $convert  = $args{convert};
     $args{trap} //= 1;
     my $trap     = $args{trap};
     $args{compile} //= 1;
     my $compile  = $args{compile};
+    $args{normalize_schemas} //= 1;
+    my $normalize_schemas = $args{normalize_schemas};
 
     my $comppkg  = $self->{comppkg};
 
@@ -327,6 +365,8 @@ sub wrap {
     for (keys %$convert) {
         $meta->{$_} = undef unless exists $meta->{$_};
     }
+
+    # clone some properties
 
     my $v = $meta->{v} // 1.0;
     return [412, "Unsupported metadata version ($v), only 1.1 supported"]
@@ -350,7 +390,7 @@ sub wrap {
     $self->{_codes} = {};
 
     $self->{_args} = \%args;
-    $self->{_meta} = $meta;
+    $self->{_meta} = $meta; # the new metadata
     $self->select_section('OPEN_SUB');
     $self->push_lines(
         "package $comppkg;",

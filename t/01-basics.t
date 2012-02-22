@@ -27,10 +27,12 @@ test_wrap(
     wrap_status => 502,
 );
 
-# test wrap arg 'trap' + wrapping 'args_as' property
+# test wrap arg 'trap' + wrapping 'args_as' property, also test
+# normalizing schemas
 
 $sub = sub { [200, "OK", $_[0]/$_[1]] };
-$meta = {v=>1.1, args_as=>"array", args=>{a=>{pos=>0}, b=>{pos=>1}}};
+$meta = {v=>1.1, args_as=>"array",
+         args=>{a=>{pos=>0, schema=>"int"}, b=>{pos=>1}}};
 test_wrap(
     name => '(trap=1, default) call doesn\'t die',
     wrap_args => {sub => $sub, meta => $meta},
@@ -40,16 +42,23 @@ test_wrap(
     posttest => sub {
         my ($wrap_res, $call_res) = @_;
         my $newmeta = $wrap_res->[2]{meta};
-        # currently not the case, we add default args_as, result_naked, etc.
-        #is("$newmeta", "$meta", "meta not copied when there's no conversion");
+        is_deeply($newmeta->{args}{a}{schema}, [int=>{}],
+                  "schemas by default are normalized (a)");
     },
 );
 test_wrap(
     name => '(trap=1, default) call dies -> 500',
-    wrap_args => {sub => $sub, meta => $meta},
+    wrap_args => {sub => $sub, meta => $meta, normalize_schemas=>0},
     wrap_status => 200,
     call_argsr => [12, 0],
     call_status => 500,
+    posttest => sub {
+        my ($wrap_res, $call_res) = @_;
+        my $newmeta = $wrap_res->[2]{meta};
+        is_deeply($newmeta->{args}{a}{schema}, "int",
+                  "schemas are not normalize when normalized_schemas=0 (a)")
+            or diag explain $newmeta;
+    },
 );
 test_wrap(
     name => '(trap=0) call dies -> dies',
