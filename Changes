@@ -5,8 +5,10 @@ Revision history for Perinci-Sub-Wrapper
          [NEW FEATURES]
 
          - Sah schemas in 'args' and 'result' are now normalized in the new
-           metadata. New metadata is now a deep clone of the old (instead of
-           just a shallow copy).
+           metadata, this is to make it simpler for other code to use the schema
+           (e.g. Perinci-Access when completing args). New metadata is now a
+           deep clone of the old (instead of just a shallow copy), this might
+           increase memory usage.
 
 
 0.12     2012-02-15
