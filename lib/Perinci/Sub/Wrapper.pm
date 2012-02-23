@@ -153,7 +153,63 @@ sub _code_as_str {
     join "\n", @lines;
 }
 
-sub handlemeta_v { {} }
+sub handlemeta_v { {prio=>0.1, convert=>1} }
+sub handle_v {
+    my ($self, %args) = @_;
+
+    my $v      = $args{new} // $args{value};
+    die "Cannot produce metadata other than v1.1 ($v)" unless $v == 1.1;
+
+    return if $v == $args{value};
+    die "Cannot convert metadata other than from v1.0"
+        unless $args{value} == 1.0;
+
+    my $meta = $self->{_meta};
+
+    # converting metadata from v1.0 to v1.1
+    if ($meta->{args}) {
+        for my $a (keys %{$meta->{args}}) {
+            my $old = $meta->{args}{$a};
+            my $new = {};
+            if (ref($old) eq 'ARRAY') {
+                if (defined $old->[1]{arg_pos}) {
+                    $new->{pos} = $old->[1]{arg_pos};
+                    delete $old->[1]{arg_pos};
+                }
+                if (defined $old->[1]{arg_greedy}) {
+                    $new->{greedy} = $old->[1]{arg_greedy};
+                    delete $old->[1]{arg_greedy};
+                }
+                if (defined $old->[1]{arg_complete}) {
+                    $new->{completion} = $old->[1]{arg_complete};
+                    delete $old->[1]{arg_complete};
+                }
+                if (defined $old->[1]{arg_aliases}) {
+                    # i'm lazy
+                    warn "Can't handle arg_aliases yet ".
+                        "(arg '$a' in property 'args'), ignored. You can move ".
+                            "this manually to a new arg with 'alias_for' set ".
+                                "to the canonical arg.";
+                    delete $old->[1]{arg_aliases};
+                }
+            } elsif (!ref($old)) {
+                # do nothing
+            } else {
+                die "Can't handle v1.0 args property (not array/scalar)";
+            }
+            $new->{schema} = $old;
+            $meta->{args}{$a} = $new;
+        }
+    }
+
+    if ($meta->{result}) {
+        $meta->{result} = {schema=>$meta->{result}};
+    }
+
+    $meta->{_note} = "Converted from v1.0 by ".__PACKAGE__.
+        " on ".scalar(localtime);
+}
+
 sub handlemeta_default_lang { {} }
 sub handlemeta_name { {} }
 sub handlemeta_summary { {} }
@@ -366,11 +422,14 @@ sub wrap {
         $meta->{$_} = undef unless exists $meta->{$_};
     }
 
+    $convert->{v} //= 1.1;
+
     # clone some properties
 
-    my $v = $meta->{v} // 1.0;
-    return [412, "Unsupported metadata version ($v), only 1.1 supported"]
-        unless $v == 1.1;
+    $meta->{v} //= 1.0;
+    return [412, "Unsupported metadata version ($meta->{v}), only 1.0 & 1.1 ".
+                "supported"]
+        unless $meta->{v} == 1.1 || $meta->{v} == 1.0;
 
     # put the sub in a named variable, so it can be accessed by the wrapper
     # code.

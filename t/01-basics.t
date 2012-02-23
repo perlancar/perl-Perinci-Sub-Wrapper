@@ -13,11 +13,31 @@ use Scalar::Util qw(blessed);
 my ($sub, $meta);
 
 $sub = sub {};
-$meta = {};
+$meta = {
+    args=>{
+        a=>[str => {default=>'x', arg_pos=>0, arg_greedy=>1}],
+        b=>'int',
+    },
+    result=>'int',
+};
+# XXX test arg_completion conversion
 test_wrap(
-    name => 'meta version != 1.1 -> fail',
+    name => 'meta version == 1.0 -> converted to 1.1',
     wrap_args => {sub => $sub, meta => $meta},
-    wrap_status => 412,
+    wrap_status => 200,
+    posttest => sub {
+        my ($wrap_res, $call_res) = @_;
+        my $newmeta = $wrap_res->[2]{meta};
+        is($newmeta->{v}, 1.1, 'version');
+        is_deeply($newmeta->{args},
+                  {a=>{schema=>['str'=>{default=>'x'}],
+                       pos=>0, greedy=>1},
+                   b=>{schema=>[int=>{}]}}, 'args')
+            or diag explain $newmeta->{args};
+        is_deeply($newmeta->{result},
+                  {schema=>[int=>{}]}, 'result')
+            or diag explain $newmeta->{result};
+    },
 );
 
 $meta = {v=>1.1};
