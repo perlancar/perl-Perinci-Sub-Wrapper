@@ -535,7 +535,7 @@ So far you can convert 'args_as' and 'result_naked'.
 _
         },
         trap => {
-            schema => 'bool',
+            schema => ['bool' => {default=>1}],
             summary => 'Whether to trap exception using an eval block',
             description => <<'_',
 
@@ -544,10 +544,9 @@ function dies. Note that if some other properties requires an eval block (like
 'timeout') an eval block will be added regardless of this parameter.
 
 _
-            default => 1,
         },
         compile => {
-            schema => 'bool',
+            schema => ['bool' => {default=>1}],
             summary => 'Whether to compile the generated wrapper',
             description => <<'_',
 
@@ -555,7 +554,17 @@ Can be set to 0 to not actually wrap but just return the generated wrapper
 source code.
 
 _
-            default => 1,
+        },
+        normalize_schema => {
+            schema => ['bool' => {default=>1}],
+            summary => 'Whether to normalize schemas in metadata',
+            description => <<'_',
+
+By default, wrapper normalize Sah schemas in metadata, like in 'args' or
+'result' property, for convenience so that it does not need to be normalized
+again prior to use. If you want to turn off this behaviour, set to false.
+
+_
         },
     },
 };
