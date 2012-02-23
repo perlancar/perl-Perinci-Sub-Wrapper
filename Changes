@@ -1,5 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.14     2012-02-23
+
+         [NEW FEATURES]
+
+         - Automatically convert metadata v1.0 to v1.1.
+
+
 0.13     2012-02-22
 
          [NEW FEATURES]
