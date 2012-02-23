@@ -380,7 +380,7 @@ sub wrap {
     # also store the meta, it is needed by the wrapped sub. sometimes the meta
     # contains coderef and can't be dumped reliably, so we store it instead.
     my $metaname = $comppkg . "::meta".Scalar::Util::refaddr($meta);
-    { no strict 'refs'; ${$metaname} = $meta; }
+    { no strict 'refs'; no warnings; ${$metaname} = $meta; }
     $self->{_var_meta} = $metaname;
 
     # reset work variables. we haven't tested this yet because we expect the
