@@ -332,6 +332,16 @@ sub handle_args {
         }
     }
 
+    # remove internal properties
+    my $rm = $self->{_args}{remove_internal_properties};
+    while (my ($a, $as) = each %$v) {
+        for my $k (keys %$as) {
+            if ($k =~ /^_/) {
+                delete $as->{$k} if $rm;
+            }
+        }
+    }
+
     # XXX validation not implemented yet
 
 }
@@ -414,6 +424,8 @@ sub wrap {
     my $compile  = $args{compile};
     $args{normalize_schemas} //= 1;
     my $normalize_schemas = $args{normalize_schemas};
+    $args{remove_internal_properties} //= 1;
+    my $remove_internal_properties = $args{remove_internal_properties};
 
     my $comppkg  = $self->{comppkg};
 
@@ -465,7 +477,10 @@ sub wrap {
 
     my %handler_args;
     for my $k0 (keys %$meta) {
-        next if $k0 =~ /^_/;
+        if ($k0 =~ /^_/) {
+            delete $meta->{$k0} if $remove_internal_properties;
+            next;
+        }
         my $k = $k0;
         $k =~ s/\..+//;
         next if $handler_args{$k};
@@ -622,6 +637,16 @@ _
 By default, wrapper normalize Sah schemas in metadata, like in 'args' or
 'result' property, for convenience so that it does not need to be normalized
 again prior to use. If you want to turn off this behaviour, set to false.
+
+_
+        },
+        remove_internal_properties => {
+            schema => ['bool' => {default=>1}],
+            summary => 'Whether to remove properties prefixed with _',
+            description => <<'_',
+
+By default, wrapper removes internal properties (properties which start with
+underscore) in the new metadata. Set this to false to keep them.
 
 _
         },
