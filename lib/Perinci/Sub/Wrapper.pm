@@ -336,6 +336,15 @@ sub handle_args {
                 $v->{$k}{schema} =
                     Data::Sah::normalize_schema($v->{$k}{schema});
             }
+            my $al = $v->{$k}{cmdline_aliases};
+            if ($al) {
+                for my $a (keys %$al) {
+                    if ($al->{$a}{schema}) {
+                        $al->{$a}{schema} =
+                            Data::Sah::normalize_schema($al->{$a}{schema});
+                    }
+                }
+            }
         }
     }
 

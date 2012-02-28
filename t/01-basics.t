@@ -55,7 +55,8 @@ test_wrap(
 
 $sub = sub { [200, "OK", $_[0]/$_[1]] };
 $meta = {v=>1.1, args_as=>"array",
-         args=>{a=>{pos=>0, schema=>"int"}, b=>{pos=>1}}};
+         args=>{a=>{pos=>0, schema=>"int"},
+                b=>{pos=>1, cmdline_aliases=>{B=>{schema=>'bool'}}}}};
 test_wrap(
     name => '(trap=1, default) call doesn\'t die',
     wrap_args => {sub => $sub, meta => $meta},
@@ -67,6 +68,8 @@ test_wrap(
         my $newmeta = $wrap_res->[2]{meta};
         is_deeply($newmeta->{args}{a}{schema}, [int=>{}],
                   "schemas by default are normalized (a)");
+        is_deeply($newmeta->{args}{b}{cmdline_aliases}{B}{schema}, [bool=>{}],
+                  "schemas in cmdline_aliases by default are normalized (b)");
     },
 );
 test_wrap(
