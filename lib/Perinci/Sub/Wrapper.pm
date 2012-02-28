@@ -186,6 +186,17 @@ sub handle_v {
                 }
                 if (defined $old->[1]{arg_aliases}) {
                     $new->{cmdline_aliases} = $old->[1]{arg_aliases};
+                    while (my ($al, $als) = each %{ $new->{cmdline_aliases} }) {
+                        if ($als->{code}) {
+                            warn join(
+                                "",
+                                "Converting arg_aliases -> cmdline_aliases: ",
+                                "alias '$al' has 'code', ",
+                                "this must be converted manually due to change",
+                                "of arguments (now only receives \\\%args)"
+                            );
+                        }
+                    }
                     delete $old->[1]{arg_aliases};
                 }
             } elsif (!ref($old)) {
