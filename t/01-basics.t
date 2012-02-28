@@ -15,7 +15,8 @@ my ($sub, $meta);
 $sub = sub {};
 $meta = {
     args=>{
-        a=>[str => {default=>'x', arg_pos=>0, arg_greedy=>1}],
+        a=>[str => {default=>'x', arg_pos=>0, arg_greedy=>1,
+                    arg_aliases=>{a1=>{}}}],
         b=>'int',
     },
     result=>'int',
@@ -31,7 +32,7 @@ test_wrap(
         is($newmeta->{v}, 1.1, 'version');
         is_deeply($newmeta->{args},
                   {a=>{schema=>['str'=>{default=>'x'}],
-                       pos=>0, greedy=>1},
+                       pos=>0, greedy=>1, cmdline_aliases=>{a1=>{}}},
                    b=>{schema=>[int=>{}]}}, 'args')
             or diag explain $newmeta->{args};
         is_deeply($newmeta->{result},

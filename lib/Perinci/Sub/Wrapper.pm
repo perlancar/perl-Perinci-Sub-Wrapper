@@ -185,11 +185,7 @@ sub handle_v {
                     delete $old->[1]{arg_complete};
                 }
                 if (defined $old->[1]{arg_aliases}) {
-                    # i'm lazy
-                    warn "Can't handle arg_aliases yet ".
-                        "(arg '$a' in property 'args'), ignored. You can move ".
-                            "this manually to a new arg with 'alias_for' set ".
-                                "to the canonical arg.";
+                    $new->{cmdline_aliases} = $old->[1]{arg_aliases};
                     delete $old->[1]{arg_aliases};
                 }
             } elsif (!ref($old)) {
