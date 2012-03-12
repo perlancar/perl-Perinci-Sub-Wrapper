@@ -172,6 +172,10 @@ sub handle_v {
             my $old = $meta->{args}{$a};
             my $new = {};
             if (ref($old) eq 'ARRAY') {
+                for (qw/summary description/) {
+                    $new->{$_} = $old->[1]{$_};
+                    delete $old->[1]{$_};
+                }
                 if (defined $old->[1]{arg_pos}) {
                     $new->{pos} = $old->[1]{arg_pos};
                     delete $old->[1]{arg_pos};
