@@ -173,7 +173,7 @@ sub handle_v {
             my $new = {};
             if (ref($old) eq 'ARRAY') {
                 for (qw/summary description/) {
-                    $new->{$_} = $old->[1]{$_};
+                    $new->{$_} = $old->[1]{$_} if defined $old->[1]{$_};
                     delete $old->[1]{$_};
                 }
                 if (defined $old->[1]{arg_pos}) {
