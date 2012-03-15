@@ -1,5 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.16     2012-03-16
+
+         [ENHANCEMENTS]
+
+         - Convert 1.0 - 1.1: Set argument spec's summary from argument schema.
+
+
 0.15     2012-02-28
 
          [NEW FEATURES]
