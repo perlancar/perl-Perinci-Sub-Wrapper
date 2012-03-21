@@ -1,5 +1,15 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.17     2012-03-21
+
+         [ENHANCEMENTS]
+
+         - Convert 'default_lang' property.
+
+         - 'remove_internal_properties' now also removes internal properties in
+           'result', 'examples', and 'links'.
+
+
 0.16     2012-03-16
 
          [ENHANCEMENTS]
