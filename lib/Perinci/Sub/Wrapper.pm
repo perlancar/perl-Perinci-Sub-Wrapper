@@ -259,12 +259,46 @@ sub handlemeta_name { {} }
 sub handlemeta_summary { {} }
 sub handlemeta_description { {} }
 sub handlemeta_tags { {} }
-sub handlemeta_links { {} }
+
+sub handlemeta_links { {prio=>5} }
+sub handle_links {
+    my ($self, %args) = @_;
+
+    my $v = $self->{_meta}{links};
+    return unless $v;
+
+    my $rm = $self->{_args}{remove_internal_properties};
+    for my $ln (@$v) {
+        for my $k (keys %$ln) {
+            if ($k =~ /^_/) {
+                delete $ln->{$k} if $rm;
+            }
+        }
+    }
+}
+
 sub handlemeta_text_markup { {} }
 sub handlemeta_is_func { {} }
 sub handlemeta_is_meth { {} }
 sub handlemeta_is_class_meth { {} }
-sub handlemeta_examples { {} }
+
+sub handlemeta_examples { {prio=>5} }
+sub handle_examples {
+    my ($self, %args) = @_;
+
+    my $v = $self->{_meta}{examples};
+    return unless $v;
+
+    my $rm = $self->{_args}{remove_internal_properties};
+    for my $ex (@$v) {
+        for my $k (keys %$ex) {
+            if ($k =~ /^_/) {
+                delete $ex->{$k} if $rm;
+            }
+        }
+    }
+}
+
 sub handlemeta_features { {} }
 
 # run before args
@@ -385,7 +419,6 @@ sub handle_args {
         }
     }
 
-    # remove internal properties
     my $rm = $self->{_args}{remove_internal_properties};
     while (my ($a, $as) = each %$v) {
         for my $k (keys %$as) {
@@ -413,6 +446,13 @@ sub handle_result {
     if ($self->{_args}{normalize_schemas}) {
         if ($v->{schema}) {
             $v->{schema} = Data::Sah::normalize_schema($v->{schema});
+        }
+    }
+
+    my $rm = $self->{_args}{remove_internal_properties};
+    for my $k (keys %$v) {
+        if ($k =~ /^_/) {
+            delete $v->{$k} if $rm;
         }
     }
 
