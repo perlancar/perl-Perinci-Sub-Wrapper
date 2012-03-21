@@ -391,7 +391,7 @@ sub handle_args_as {
     $self->{_args_token} = $tok;
 }
 
-sub handlemeta_args { {prio=>10, convert=>1} }
+sub handlemeta_args { {prio=>10, convert=>0} }
 sub handle_args {
     require Data::Sah;
 
@@ -433,7 +433,7 @@ sub handle_args {
 }
 
 # XXX not implemented yet
-sub handlemeta_result { {prio=>50, convert=>1} }
+sub handlemeta_result { {prio=>50, convert=>0} }
 sub handle_result {
     require Data::Sah;
 
@@ -699,7 +699,9 @@ _
             summary => 'Properties to convert to new value',
             description => <<'_',
 
-So far you can convert 'args_as' and 'result_naked'.
+Not all properties can be converted, but these are a partial list of those that
+can: v (usually do not need to be specified when converting from 1.0 to 1.1,
+will be done automatically), args_as, result_naked, default_lang.
 
 _
         },
