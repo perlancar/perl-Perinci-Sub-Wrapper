@@ -221,7 +221,40 @@ sub handle_v {
         " on ".scalar(localtime);
 }
 
-sub handlemeta_default_lang { {} }
+# before all the other language properties (summary, description, ...)
+sub handlemeta_default_lang { {prio=>0.9, convert=>1} }
+sub handle_default_lang {
+    my ($self, %args) = @_;
+
+    my $meta = $self->{_meta};
+    my @m = ($meta);
+    push @m, @{$meta->{links}} if $meta->{links};
+    push @m, @{$meta->{examples}} if $meta->{examples};
+    push @m, $meta->{result} if $meta->{result};
+    push @m, values %{$meta->{args}} if $meta->{args};
+
+    my $i = 0;
+    my ($value, $new);
+    for my $m (@m) {
+        $i++;
+        if ($i == 1) {
+            $value = $args{value} // "en_US";
+            $new   = $args{new}   // $value;
+        } else {
+            $value = $m->{default_lang} // "en_US";
+        }
+        return if $value eq $new && $i == 1;
+        $m->{default_lang} = $new;
+        for my $prop (qw/summary description/) {
+            $m->{"$prop.alt.lang.$value"} //= $m->{$prop}
+                if defined $m->{$prop};
+            $m->{$prop} = $m->{"$prop.alt.lang.$new"};
+            delete $m->{$prop} unless defined $m->{$prop};
+            delete $m->{"$prop.alt.lang.$new"};
+        }
+    }
+}
+
 sub handlemeta_name { {} }
 sub handlemeta_summary { {} }
 sub handlemeta_description { {} }
@@ -490,13 +523,15 @@ sub wrap {
     $self->push_lines(
         'my ($res, $eval_err);');
 
-    # XXX validate metadata first to filter invalid properties, also to fill
-    # default values. currently this is a quick/temp code.
     $meta->{args_as} //= "hash";
-    $meta->{result_naked} //= 0;
+
+    # XXX validate metadata first to filter invalid properties
+
+    my %props = map {$_=>1} keys %$meta;
+    $props{$_} = 1 for keys %$convert;
 
     my %handler_args;
-    for my $k0 (keys %$meta) {
+    for my $k0 (keys %props) {
         if ($k0 =~ /^_/) {
             delete $meta->{$k0} if $remove_internal_properties;
             next;
