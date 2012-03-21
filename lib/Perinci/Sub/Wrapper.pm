@@ -677,11 +677,11 @@ behavior. For example, if you set a different 'args_as' or 'result_naked' in
 'convert', then the new metadata will carry the new values.
 
 _
-        schema=>['hash*'=>[keys=>{
+        schema=>['hash*'=>{keys=>{
             sub=>'code*',
             source=>'str*',
             meta=>'hash*',
-        }]],
+        }}],
     },
     args => {
         sub => {
@@ -811,11 +811,6 @@ only the first part of the name will be used (i.e., C<handle_NAME1()>).
 =head1 METHODS
 
 The OO interface is only used internally or when you want to extend the wrapper.
-
-
-=head1 FUNCTIONS
-
-None are exported, but they are exportable.
 
 
 =head1 SEE ALSO
