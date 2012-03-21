@@ -69,3 +69,4 @@ sub test_wrap {
 }
 
 1;
+# ABSTRACT: Provide test_wrap() to test wrapper
