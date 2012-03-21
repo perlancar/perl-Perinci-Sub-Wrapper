@@ -32,7 +32,8 @@ Revision history for Perinci-Sub-Wrapper
 
          [NEW FEATURES]
 
-         - Automatically convert metadata v1.0 to v1.1.
+         - Automatically convert metadata v1.0 to v1.1. Finally all the old
+           Sub::Spec specs are now usable again.
 
 
 0.13     2012-02-22
