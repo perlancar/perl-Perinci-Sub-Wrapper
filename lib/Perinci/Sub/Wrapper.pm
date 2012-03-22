@@ -232,6 +232,7 @@ sub handle_default_lang {
     push @m, @{$meta->{examples}} if $meta->{examples};
     push @m, $meta->{result} if $meta->{result};
     push @m, values %{$meta->{args}} if $meta->{args};
+    push @m, (grep {ref($_) eq 'HASH'} @{$meta->{tags}}) if $meta->{tags};
 
     my $i = 0;
     my ($value, $new);

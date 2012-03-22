@@ -419,6 +419,7 @@ $meta = {
     examples=>[{"description.alt.lang.en_US"=>"EN ex1"}],
     links=>[{},
             {"description.alt.lang.fr_FR"=>"FR link1"}],
+    tags => ['test', {name=>'category', summary=>'EN t1'}],
 };
 my $newmeta_expected = {
     v=>1.1,
@@ -433,6 +434,9 @@ my $newmeta_expected = {
     examples=>[{default_lang=>"id_ID", "description.alt.lang.en_US"=>"EN ex1"}],
     links=>[{default_lang=>"id_ID"},
             {default_lang=>"id_ID", "description.alt.lang.fr_FR"=>"FR link1"}],
+    tags => ['test',
+             {default_lang=>'id_ID', name=>'category',
+              "summary.alt.lang.en_US"=>'EN t1'}],
 };
 test_wrap(
     name => 'convert default_lang',
