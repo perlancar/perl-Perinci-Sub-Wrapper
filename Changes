@@ -1,5 +1,13 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.19     2012-03-22
+
+         [ENHANCEMENTS]
+
+         - 'default_lang' also converts language properties in tag metadata in
+           'tags'.
+
+
 0.18     2012-03-21
 
          No functional changes. Rebuild with Perinci PodWeaver plugin enabled.
