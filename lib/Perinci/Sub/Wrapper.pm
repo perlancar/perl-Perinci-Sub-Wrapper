@@ -206,7 +206,8 @@ sub handle_v {
             } elsif (!ref($old)) {
                 # do nothing
             } else {
-                die "Can't handle v1.0 args property (not array/scalar)";
+                die "Can't handle v1.0 args property ".
+                    "(arg '$a' not array/scalar)";
             }
             $new->{schema} = $old;
             $meta->{args}{$a} = $new;
