@@ -518,9 +518,13 @@ sub handle_deps {
                 'please specify -trash_dir"]; return $res }');
     }
     if ($value->{undo_trash_dir}) {
-        $self->push_lines(
-            'unless ($args{-undo_trash_dir} || $args{-undo_action} && $args{-undo_action} =~ /\A(?:undo|redo)\z/) { $res = [412, "Dep failed: '.
-                'please specify -undo_trash_dir"]; return $res }');
+        $self->push_lines(join(
+            '',
+            'unless ($args{-undo_trash_dir} || $args{-tx_manager} || ',
+            '$args{-undo_action} && $args{-undo_action}=~/\A(?:undo|redo)\z/) ',
+            '{ $res = [412, "Dep failed: ',
+            'please specify -undo_trash_dir"]; return $res }'
+        ));
     }
 }
 
