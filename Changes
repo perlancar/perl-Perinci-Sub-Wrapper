@@ -1,5 +1,11 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.20     2012-06-07
+
+         Update to Rinci 1.1.18 (some new deps introduced: 'tmp_dir',
+         'trash_dir', 'undo_trash_dir'; some removed: 'undo_storage').
+
+
 0.19     2012-03-22
 
          [ENHANCEMENTS]
