@@ -1,5 +1,13 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.21     2012-06-07
+
+         [FIXES]
+
+         - deps: '-undo_trash_dir' argument is not needed when '-tx_manager'
+           argument is given.
+
+
 0.20     2012-06-07
 
          Update to Rinci 1.1.18 (some new deps introduced: 'tmp_dir',
