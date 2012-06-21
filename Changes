@@ -1,5 +1,10 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.22     2012-06-21
+
+         - features: Require transaction (-tx_manager argument) if tx req=>1.
+
+
 0.21     2012-06-07
 
          [FIXES]
