@@ -1,11 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
-0.22     2012-06-21
+0.22     2012-06-21 (SHARYANTO)
 
-         - features: Require transaction (-tx_manager argument) if tx req=>1.
+         - features: Require transaction ('-tx_manager' argument) if
+           features->{tx}{req} is 1.
 
 
-0.21     2012-06-07
+0.21     2012-06-07 (SHARYANTO)
 
          [FIXES]
 
@@ -13,13 +14,13 @@ Revision history for Perinci-Sub-Wrapper
            argument is given.
 
 
-0.20     2012-06-07
+0.20     2012-06-07 (SHARYANTO)
 
          Update to Rinci 1.1.18 (some new deps introduced: 'tmp_dir',
          'trash_dir', 'undo_trash_dir'; some removed: 'undo_storage').
 
 
-0.19     2012-03-22
+0.19     2012-03-22 (SHARYANTO)
 
          [ENHANCEMENTS]
 
@@ -27,12 +28,12 @@ Revision history for Perinci-Sub-Wrapper
            'tags'.
 
 
-0.18     2012-03-21
+0.18     2012-03-21 (SHARYANTO)
 
          No functional changes. Rebuild with Perinci PodWeaver plugin enabled.
 
 
-0.17     2012-03-21
+0.17     2012-03-21 (SHARYANTO)
 
          [ENHANCEMENTS]
 
@@ -42,14 +43,14 @@ Revision history for Perinci-Sub-Wrapper
            'result', 'examples', and 'links'.
 
 
-0.16     2012-03-16
+0.16     2012-03-16 (SHARYANTO)
 
          [ENHANCEMENTS]
 
          - Convert 1.0 - 1.1: Set argument spec's summary from argument schema.
 
 
-0.15     2012-02-28
+0.15     2012-02-28 (SHARYANTO)
 
          [NEW FEATURES]
 
@@ -60,7 +61,7 @@ Revision history for Perinci-Sub-Wrapper
          - Add 'remove_internal_properties' wrap option.
 
 
-0.14     2012-02-23
+0.14     2012-02-23 (SHARYANTO)
 
          [NEW FEATURES]
 
@@ -68,7 +69,7 @@ Revision history for Perinci-Sub-Wrapper
            Sub::Spec specs are now usable again.
 
 
-0.13     2012-02-22
+0.13     2012-02-22 (SHARYANTO)
 
          [NEW FEATURES]
 
@@ -79,7 +80,7 @@ Revision history for Perinci-Sub-Wrapper
            increase memory usage.
 
 
-0.12     2012-02-15
+0.12     2012-02-15 (SHARYANTO)
 
          [REMOVED FEATURES]
 
@@ -88,28 +89,28 @@ Revision history for Perinci-Sub-Wrapper
            should be done in the upper layers.
 
 
-0.11     2012-02-13
+0.11     2012-02-13 (SHARYANTO)
 
          [ETC]
 
          - Add tweak to work better with 'retry' property wrapper.
 
 
-0.10     2012-02-13
+0.10     2012-02-13 (SHARYANTO)
 
          [NEW FEATURES]
 
          - Add wrap option 'compile'.
 
 
-0.09     2012-02-13
+0.09     2012-02-13 (SHARYANTO)
 
          [BUG FIXES]
 
          - Fix indenting in generated code.
 
 
-0.08     2012-02-12
+0.08     2012-02-12 (SHARYANTO)
 
          [BUG FIXES]
 
@@ -117,7 +118,7 @@ Revision history for Perinci-Sub-Wrapper
            key.
 
 
-0.07     2012-02-12
+0.07     2012-02-12 (SHARYANTO)
 
          - Add (or re-enable) unshift_lines()
 
@@ -125,23 +126,23 @@ Revision history for Perinci-Sub-Wrapper
            from other Perinci-Sub-property-* distributions.
 
 
-0.06     2012-02-12
+0.06     2012-02-12 (SHARYANTO)
 
          Rename distribution from Sub-Spec-Wrapper to Perinci-Sub-Wrapper.
 
 
-0.05     2012-01-21
+0.05     2012-01-21 (SHARYANTO)
 
          No functional changes. Mark Sub-Spec-Wrapper deprecated.
 
 
-0.04     2011-10-19
+0.04     2011-10-19 (SHARYANTO)
 
          No functional changes. Add missing dependency to
          Sub::Spec::ConvertArgs::Array [thanks cpant & Andreas].
 
 
-0.03     2011-09-22
+0.03     2011-09-22 (SHARYANTO)
 
          [ENHANCEMENTS]
 
@@ -149,11 +150,11 @@ Revision history for Perinci-Sub-Wrapper
            but object not yet).
 
 
-0.02     2011-08-31
+0.02     2011-08-31 (SHARYANTO)
 
          Build and POD fixes.
 
 
-0.01     2011-08-31
+0.01     2011-08-31 (SHARYANTO)
 
          First release.
