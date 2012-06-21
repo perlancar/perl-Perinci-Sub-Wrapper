@@ -307,7 +307,27 @@ sub handle_examples {
     }
 }
 
-sub handlemeta_features { {} }
+# after args
+sub handlemeta_features { {prio=>15} }
+sub handle_features {
+    my ($self, %args) = @_;
+
+    my $v = $self->{_meta}{features} // {};
+
+    $self->select_section('before_call_after_arg_validation');
+
+    if ($v->{tx} && $v->{tx}{req}) {
+        $self->push_lines('', '# check required transaction');
+        if ($self->{_args}{trap}) {
+            $self->_errif(412, '"Must run with transaction (pass -tx_manager)"',
+                          '!$args{-tx_manager}');
+        } else {
+            $self->push_lines(
+                'die "Must run with transaction (pass -tx_manager)" '.
+                    'unless $args{-tx_manager};'),
+        }
+    }
+}
 
 # run before args
 sub handlemeta_args_as { {prio=>1, convert=>1} }

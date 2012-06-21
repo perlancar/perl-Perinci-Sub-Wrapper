@@ -368,6 +368,31 @@ $meta = {v=>1.1, args=>{}, deps=>{env=>"A"}};
         call_argsr => [],
         call_status => 200,
     );
+
+    # XXX test under trap=0
+}
+
+# test wrapping 'features' property
+
+$sub = sub {[200,"OK"]};
+$meta = {v=>1.1, features=>{tx=>{req=>1}}};
+{
+    test_wrap(
+        name => 'deps 1',
+        wrap_args => {sub => $sub, meta => $meta},
+        wrap_status => 200,
+        call_argsr => [],
+        call_status => 412,
+    );
+    test_wrap(
+        name => 'deps 1',
+        wrap_args => {sub => $sub, meta => $meta},
+        wrap_status => 200,
+        call_argsr => [-tx_manager=>"dummy"],
+        call_status => 200,
+    );
+
+    # XXX test under trap=0
 }
 
 $sub = sub { [200, "OK"] };
