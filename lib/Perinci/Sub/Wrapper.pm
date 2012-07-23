@@ -428,11 +428,17 @@ sub handle_args {
     my $v = $self->{_meta}{args};
     return unless $v;
 
+    my $rm = $self->{_args}{remove_internal_properties};
+
     # check known arg key
-    for my $a (keys %$v) {
-        for (keys %{ $v->{$a} }) {
-            next if /\A_/;
-            die "Unknown arg spec key '$_' for arg '$a'" unless
+    for my $an (keys %$v) {
+        my $as = $v->{$an};
+        for (keys %$as) {
+            if (/\A_/) {
+                delete $as->{$_} if $rm;
+                next;
+            }
+            die "Unknown arg spec key '$_' for arg '$an'" unless
                 /\A(
                      summary|description|tags|default_lang|
                      schema|req|pos|greedy|
@@ -446,34 +452,23 @@ sub handle_args {
 
     # normalize schema
     if ($self->{_args}{normalize_schemas}) {
-        for my $k (keys %$v) {
-            if ($v->{$k}{schema}) {
-                $v->{$k}{schema} =
-                    Data::Sah::normalize_schema($v->{$k}{schema});
+        for my $an (keys %$v) {
+            my $as = $v->{$an};
+            if ($as->{schema}) {
+                $as->{schema} =
+                    Data::Sah::normalize_schema($as->{schema});
             }
-            my $al = $v->{$k}{cmdline_aliases};
-            if ($al) {
-                for my $a (keys %$al) {
-                    if ($al->{$a}{schema}) {
-                        $al->{$a}{schema} =
-                            Data::Sah::normalize_schema($al->{$a}{schema});
+            my $als = $as->{cmdline_aliases};
+            if ($als) {
+                for my $al (keys %$als) {
+                    if ($als->{$al}{schema}) {
+                        $als->{$al}{schema} =
+                            Data::Sah::normalize_schema($als->{$al}{schema});
                     }
                 }
             }
         }
     }
-
-    my $rm = $self->{_args}{remove_internal_properties};
-    while (my ($a, $as) = each %$v) {
-        for my $k (keys %$as) {
-            if ($k =~ /^_/) {
-                delete $as->{$k} if $rm;
-            }
-        }
-    }
-
-    # XXX validation not implemented yet
-
 }
 
 # XXX not implemented yet
