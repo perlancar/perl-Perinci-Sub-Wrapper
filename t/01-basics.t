@@ -347,6 +347,20 @@ test_wrap(
     call_res => 4,
 );
 
+# test wrapping 'args' property
+$meta = {v=>1.1, args=>{a=>{foo=>1}}};
+test_wrap(
+    name => 'args: unknown arg spec key -> dies',
+    wrap_args => {sub => $sub, meta => $meta},
+    wrap_dies => 1,
+);
+$meta = {v=>1.1, args=>{a=>{_foo=>1}}};
+test_wrap(
+    name => 'args: arg spec key prefixed by _ is ignored',
+    wrap_args => {sub => $sub, meta => $meta},
+    wrap_status => 200,
+);
+
 # test wrapping 'deps' property
 
 $sub = sub {[200,"OK"]};

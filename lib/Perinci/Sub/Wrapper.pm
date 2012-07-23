@@ -431,6 +431,17 @@ sub handle_args {
     # normalize schema
     if ($self->{_args}{normalize_schemas}) {
         for my $k (keys %$v) {
+            for (keys %{ $v->{$k} }) {
+                next if /\A_/;
+                die "Unknown arg spec key '$_' for arg '$k'" unless
+                    /\A(
+                         summary|description|tags|default_lang|
+                         schema|req|pos|greedy|
+                         completion|
+                         cmdline_aliases|
+                         src|cmdline_src
+                     )(\..+)?\z/x;
+            }
             if ($v->{$k}{schema}) {
                 $v->{$k}{schema} =
                     Data::Sah::normalize_schema($v->{$k}{schema});
