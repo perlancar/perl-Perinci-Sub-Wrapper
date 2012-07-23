@@ -441,6 +441,7 @@ sub handle_args {
                          cmdline_aliases|
                          src|cmdline_src
                      )(\..+)?\z/x;
+                # XXX actually only summary/description can have .alt.lang.XXX
             }
             if ($v->{$k}{schema}) {
                 $v->{$k}{schema} =
