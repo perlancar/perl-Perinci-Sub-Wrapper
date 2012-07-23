@@ -430,7 +430,7 @@ sub handle_args {
 
     my $rm = $self->{_args}{remove_internal_properties};
 
-    # check known arg key
+    # validation
     for my $an (keys %$v) {
         my $as = $v->{$an};
         for (keys %$as) {
@@ -438,6 +438,7 @@ sub handle_args {
                 delete $as->{$_} if $rm;
                 next;
             }
+            # check known arg key
             die "Unknown arg spec key '$_' for arg '$an'" unless
                 /\A(
                      summary|description|tags|default_lang|
@@ -447,6 +448,11 @@ sub handle_args {
                      src|cmdline_src
                  )(\..+)?\z/x;
             # XXX actually only summary/description can have .alt.lang.XXX
+
+            # XXX there should only one argument with src=stdin/stdin_or_files.
+
+            # XXX there should not be another argument with req=>1 + pos=>0,
+            # there must not be one if there is argument with src.
         }
     }
 
