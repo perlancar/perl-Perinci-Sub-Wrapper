@@ -428,21 +428,25 @@ sub handle_args {
     my $v = $self->{_meta}{args};
     return unless $v;
 
+    # check known arg key
+    for my $a (keys %$v) {
+        for (keys %{ $v->{$a} }) {
+            next if /\A_/;
+            die "Unknown arg spec key '$_' for arg '$a'" unless
+                /\A(
+                     summary|description|tags|default_lang|
+                     schema|req|pos|greedy|
+                     completion|
+                     cmdline_aliases|
+                     src|cmdline_src
+                 )(\..+)?\z/x;
+            # XXX actually only summary/description can have .alt.lang.XXX
+        }
+    }
+
     # normalize schema
     if ($self->{_args}{normalize_schemas}) {
         for my $k (keys %$v) {
-            for (keys %{ $v->{$k} }) {
-                next if /\A_/;
-                die "Unknown arg spec key '$_' for arg '$k'" unless
-                    /\A(
-                         summary|description|tags|default_lang|
-                         schema|req|pos|greedy|
-                         completion|
-                         cmdline_aliases|
-                         src|cmdline_src
-                     )(\..+)?\z/x;
-                # XXX actually only summary/description can have .alt.lang.XXX
-            }
             if ($v->{$k}{schema}) {
                 $v->{$k}{schema} =
                     Data::Sah::normalize_schema($v->{$k}{schema});
