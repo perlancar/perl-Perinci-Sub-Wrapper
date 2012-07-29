@@ -141,8 +141,9 @@ sub push_lines {
     if ($self->{_debug}) {
         for my $l (@lines) {
             $l->[2] =
-                $self->{_cur_handler} ? "$self->{_cur_handler} ".
-                    "p=$self->{_cur_handler_meta}{prio}" : "";
+                $self->{_cur_handler} ?
+                    "$self->{_cur_handler}"
+                        : "";
         }
     }
     push @{$self->{_codes}{$section}}, @lines;
