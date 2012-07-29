@@ -34,6 +34,8 @@ sub test_wrap {
                "wrap status is $test_args{wrap_status}");
         }
 
+        return unless $wrap_res->[0] == 200;
+
         my $call_argsr = $test_args{call_argsr};
         my $call_res;
         if ($call_argsr) {
