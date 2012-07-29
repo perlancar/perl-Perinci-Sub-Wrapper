@@ -123,6 +123,10 @@ sub unindent {
     $self;
 }
 
+# line can be code or comment. code should not contain string literals that
+# cross lines (i.e. contain literal newlines) because push_lines() might add
+# comment at the end of each line.
+
 sub push_lines {
     my ($self, @lines) = @_;
     my $section = $self->{_cur_section};
@@ -134,6 +138,13 @@ sub push_lines {
     }
 
     @lines = map {[$self->{_levels}{$section}, $_]} @lines;
+    if ($self->{_debug}) {
+        for my $l (@lines) {
+            $l->[2] =
+                $self->{_cur_handler} ? "$self->{_cur_handler} ".
+                    "p=$self->{_cur_handler_meta}{prio}" : "";
+        }
+    }
     push @{$self->{_codes}{$section}}, @lines;
     $self;
 }
@@ -152,7 +163,13 @@ sub _code_as_str {
             $l->[0] += $prev_section_level;
             die "BUG: Negative indent level in line $i: '$l'"
                 if $l->[0] < 0;
-            push @lines, ($self->{indent} x $l->[0]) . $l->[1];
+            my $s = ($self->{indent} x $l->[0]) . $l->[1];
+            if (defined $l->[2]) {
+                my $num_ws = 80 - length($s);
+                $num_ws = 1 if $num_ws < 1;
+                $s .= (" " x $num_ws) . "# $l->[2]";
+            }
+            push @lines, $s;
         }
         $prev_section_level += $self->{_levels}{$s};
     }
@@ -588,6 +605,8 @@ sub wrap {
 
     my $comppkg  = $self->{comppkg};
 
+    local $self->{_debug} = $args{debug} // 0;
+
     # add properties from convert, if not yet mentioned in meta
     for (keys %$convert) {
         $meta->{$_} = undef unless exists $meta->{$_};
@@ -616,6 +635,9 @@ sub wrap {
     # reset work variables. we haven't tested this yet because we expect the
     # object to be used only for one-off wrapping, via wrap_sub().
     $self->{_cur_section} = undef;
+    $self->{_cur_handler} = undef;
+    $self->{_cur_handler_args} = undef;
+    $self->{_cur_handler_meta} = undef;
     $self->{_levels} = {};
     $self->{_codes} = {};
 
@@ -637,6 +659,7 @@ sub wrap {
     $props{$_} = 1 for keys %$convert;
 
     my %handler_args;
+    my %handler_metas;
     for my $k0 (keys %props) {
         if ($k0 =~ /^_/) {
             delete $meta->{$k0} if $remove_internal_properties;
@@ -661,13 +684,17 @@ sub wrap {
             $ha->{new}   = $convert->{$k0};
             $meta->{$k0} = $convert->{$k0};
         }
-        $handler_args{$k} = $ha;
+        $handler_args{$k}  = $ha;
+        $handler_metas{$k} = $hm;
     }
 
     for my $k (sort {$handler_args{$a}{prio} <=> $handler_args{$b}{prio}}
                    keys %handler_args) {
         my $ha = $handler_args{$k};
         my $meth = $ha->{meth};
+        local $self->{_cur_handler}      = $meth;
+        local $self->{_cur_handler_meta} = $handler_metas{$k};
+        local $self->{_cur_handler_args} = $ha;
         $log->tracef("Calling %s(%s) ...", $meth, $ha);
         $self->$meth(args=>\%args, meta=>$meta, %$ha);
     }
@@ -705,7 +732,7 @@ sub wrap {
     }
 
     my $source = $self->_code_as_str;
-    $log->tracef("wrapper source code: %s", $source);
+    $log->tracef("wrapper source code:\n%s", $source);
     my $result = {source=>$source};
     if ($compile) {
         my $wrapped = eval $source;
@@ -810,6 +837,18 @@ _
 
 By default, wrapper removes internal properties (properties which start with
 underscore) in the new metadata. Set this to false to keep them.
+
+_
+        },
+        debug => {
+            schema => [bool => {default=>0}],
+            summary => 'Generate code with debugging',
+            description => <<'_',
+
+If turned on, will produce various debugging in the generated code. Currently
+what this does:
+
+* add more comments (e.g. for each property handler)
 
 _
         },
