@@ -5,6 +5,7 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
+use Module::Load;
 require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(wrap_sub);
@@ -669,9 +670,14 @@ sub wrap {
         my $k = $k0;
         $k =~ s/\..+//;
         next if $handler_args{$k};
+        return [500, "Invalid property name $k"] unless $k =~ /\A\w+\z/;
         my $meth = "handlemeta_$k";
         unless ($self->can($meth)) {
-            return [500, "Can't handle wrapping property $k0 ($meth)"];
+            # try a property module first
+            eval { load "Perinci/Sub/property/$k.pm" };
+            unless ($self->can($meth)) {
+                return [500, "Can't handle wrapping property $k0 ($meth)"];
+            }
         }
         my $hm = $self->$meth;
         next unless defined $hm->{prio};
