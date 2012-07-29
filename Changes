@@ -1,5 +1,19 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.23     2012-07-29 (SHARYANTO)
+
+         [ENHANCEMENTS]
+
+         - When encountering an unknown property, automatically try to require
+           Perinci::Sub::property::PROP first. So you don't have to manually
+           use() the property modules.
+
+         - Add wrap_sub() argument 'debug' to show debugging in generated code.
+           Currently show the handler from which each line comes from.
+
+         - Check known arg spec key.
+
+
 0.22     2012-06-21 (SHARYANTO)
 
          - features: Require transaction ('-tx_manager' argument) if
