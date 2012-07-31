@@ -102,9 +102,7 @@ sub _errif {
     $self->indent;
     $self->push_lines(
         # we set $res here when we return from inside the eval block
-        '$res = ' . (
-            $self->{_meta}{result_naked} ?
-                'undef' : "[$c_status, $c_msg]") . ';',
+        '$res = ' . "[$c_status, $c_msg]" . ';',
         'goto RETURN_RES;');
     $self->unindent;
     $self->push_lines('}');
@@ -532,25 +530,26 @@ sub handle_result {
     # XXX validation not implemented yet
 }
 
-sub handlemeta_result_naked { {v=>2, prio=>90, convert=>1} }
+sub handlemeta_result_naked { {v=>2, prio=>100, convert=>1} }
 sub handle_result_naked {
     my ($self, %args) = @_;
 
     # XXX option to check whether result is really naked
 
-    if (defined($args{new}) && !!$args{value} ne !!$args{new}) {
-        $self->select_section('after_call');
-        if ($args{new}) {
-            $self->push_lines(
-                '', '# strip result envelope',
-                '$res = $res->[2];',
-            );
-        } else {
-            $self->push_lines(
-                '', '# add result envelope',
-                '$res = [200, "OK", $res];',
-            );
-        }
+    my $old = $args{value};
+    my $v   = $args{new} // $old;
+
+    $self->select_section('before_return_res');
+    if ($v) {
+        $self->push_lines(
+            '', '# strip result envelope',
+            '$res = $res->[2];',
+        );
+    } elsif ($old && !$v) {
+        $self->push_lines(
+            '', '# add result envelope',
+            '$res = [200, "OK", $res->[2]];',
+        );
     }
 }
 
@@ -724,6 +723,12 @@ sub wrap {
 
     $self->select_section('CALL');
     $self->push_lines('$res = $'.$subname."->(".$self->{_args_token}.");");
+    if ($self->{_args}{meta}{result_naked}) {
+        # internally we always use result envelope, so let's envelope this
+        # temporarily.
+        $self->push_lines('# add temporary envelope',
+                          '$res = [200, "OK", $res];');
+    }
 
     if ($trap || $self->_needs_eval) {
         $self->select_section('CLOSE_EVAL');
