@@ -45,6 +45,10 @@ sub test_wrap {
             my $call_eval_err = $@;
             if ($test_args{call_dies}) {
                 ok($call_eval_err, "call dies");
+                if ($test_args{call_die_message}) {
+                    like($call_eval_err, $test_args{call_die_message},
+                         "call die message");
+                }
             } else {
                 ok(!$call_eval_err, "call doesn't die")
                     or diag $call_eval_err;
