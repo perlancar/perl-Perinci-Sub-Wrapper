@@ -650,7 +650,6 @@ sub wrap {
     $self->{_cur_handler_meta} = undef;
     $self->{_levels} = {};
     $self->{_codes} = {};
-
     $self->{_args} = \%args;
     $self->{_meta} = $meta; # the new metadata
     $self->select_section('OPEN_SUB');
@@ -809,6 +808,16 @@ _
             schema => 'code*',
             summary => 'The code to wrap',
             req => 1, pos => 0,
+        },
+        sub_name => {
+            schema => 'str*',
+            summary => 'The name of the code, e.g. Foo::func',
+            description => <<'_',
+
+It is a good idea to supply this so that wrapper code can display this
+information when they need to (e.g. see Perinci::Sub::property::dies_on_error).
+
+_
         },
         meta => {
             schema => 'hash*',
