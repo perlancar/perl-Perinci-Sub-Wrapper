@@ -1,5 +1,25 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.24     2012-07-31 (SHARYANTO)
+
+         [INCOMPATIBLE CHANGES]
+
+         - Introduce protocol version which must be specified by all property
+           handlers (assumed to be 1 if unspecified). This is to handle
+           introducing changes at the basic structure of wrapper code which is
+           potentially incompatible with some/lots of existing property
+           handlers.
+
+         - Bump protocol version from 1 to 2: to return result immediately,
+           handler must now say 'goto RETURN_RES' instead of 'return $res'
+           directly. This is so that some handlers get the last chance to do
+           something to $res before it is returned.
+
+         [ENHANCEMENTS]
+
+         - Introduce section: 'before_return_res'.
+
+
 0.23     2012-07-29 (SHARYANTO)
 
          [ENHANCEMENTS]
