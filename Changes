@@ -5,10 +5,10 @@ Revision history for Perinci-Sub-Wrapper
          [INCOMPATIBLE CHANGES]
 
          - Introduce protocol version which must be specified by all property
-           handlers (assumed to be 1 if unspecified). This is to handle
-           introducing changes at the basic structure of wrapper code which is
-           potentially incompatible with some/lots of existing property
-           handlers.
+           handlers (assumed to be 1 if unspecified). This is bumped whenever an
+           incompatible change at the basic structure of wrapper code is
+           introduced. Bumping the protocol version will force all existing
+           property handlers to be updated.
 
          - Bump protocol version from 1 to 2: to return result immediately,
            handler must now say 'goto RETURN_RES' instead of 'return $res'
