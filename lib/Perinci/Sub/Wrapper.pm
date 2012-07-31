@@ -692,6 +692,14 @@ sub wrap {
         die "Please update property handler $k which is still at v=$hm->{v} ".
             "(needs v=$protocol_version)"
                 unless $hm->{v} == $protocol_version;
+        if ($args{forbid_tags} && $hm->{tags}) {
+            for my $t (@{$hm->{tags}}) {
+                if ($t ~~ $args{forbid_tags}) {
+                    return [412, "Can't wrap property $k0 (forbidden by ".
+                                "forbid_tags, tag=$t)"];
+                }
+            }
+        }
         my $ha = {
             prio=>$hm->{prio}, value=>$meta->{$k0}, property=>$k0,
             meth=>"handle_$k",
@@ -886,6 +894,20 @@ If turned on, will produce various debugging in the generated code. Currently
 what this does:
 
 * add more comments (e.g. for each property handler)
+
+_
+        },
+        forbid_tags => {
+            schema => 'array',
+            summary => 'Forbid properties which have certain wrapping tags',
+            description => <<'_',
+
+Some property wrapper, like dies_on_error (see
+Perinci::Sub::property::dies_on_error) has tags 'die', to signify that it can
+cause wrapping code to die.
+
+Sometimes such properties are not desirable, e.g. in daemon environment. The use
+of such properties can be forbidden using this setting.
 
 _
         },
