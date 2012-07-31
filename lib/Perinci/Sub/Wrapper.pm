@@ -14,6 +14,12 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our %SPEC;
 
+# "protocol version" (v). whenever there's a significant change in the basic
+# structure of the wrapper, which potentially cause some/a lot of property
+# handlers to stop working, we increase this. property handler must always state
+# which version it follows in its meta. if unspecified, it's assumed to be 1.
+our $protocol_version = 2;
+
 sub new {
     my ($class, %args) = @_;
     $args{comppkg} //= "Perinci::Sub::Wrapped";
@@ -30,7 +36,7 @@ sub __squote {
 }
 
 sub _known_sections {
-    state $v = {
+    state $val = {
         # reserved by wrapper for setting Perl package and declaring 'sub {'
         OPEN_SUB => {order=>0},
 
@@ -64,10 +70,13 @@ sub _known_sections {
         # for handlers to put checks against $eval_err
         after_eval => {order=>80},
 
+        # for handlers that want to do something with $res for the last time
+        before_return_res => {order=>85},
+
         # reserved for returning '$res' and the sub closing '}' line
         CLOSE_SUB => {order=>90},
     };
-    $v;
+    $val;
 }
 
 sub section_empty {
@@ -96,7 +105,7 @@ sub _errif {
         '$res = ' . (
             $self->{_meta}{result_naked} ?
                 'undef' : "[$c_status, $c_msg]") . ';',
-        'return $res;');
+        'goto RETURN_RES;');
     $self->unindent;
     $self->push_lines('}');
 }
@@ -178,7 +187,7 @@ sub _code_as_str {
     join "\n", @lines;
 }
 
-sub handlemeta_v { {prio=>0.1, convert=>1} }
+sub handlemeta_v { {v=>2, prio=>0.1, convert=>1} }
 sub handle_v {
     my ($self, %args) = @_;
 
@@ -248,7 +257,7 @@ sub handle_v {
 }
 
 # before all the other language properties (summary, description, ...)
-sub handlemeta_default_lang { {prio=>0.9, convert=>1} }
+sub handlemeta_default_lang { {v=>2, prio=>0.9, convert=>1} }
 sub handle_default_lang {
     my ($self, %args) = @_;
 
@@ -287,7 +296,7 @@ sub handlemeta_summary { {} }
 sub handlemeta_description { {} }
 sub handlemeta_tags { {} }
 
-sub handlemeta_links { {prio=>5} }
+sub handlemeta_links { {v=>2, prio=>5} }
 sub handle_links {
     my ($self, %args) = @_;
 
@@ -309,7 +318,7 @@ sub handlemeta_is_func { {} }
 sub handlemeta_is_meth { {} }
 sub handlemeta_is_class_meth { {} }
 
-sub handlemeta_examples { {prio=>5} }
+sub handlemeta_examples { {v=>2, prio=>5} }
 sub handle_examples {
     my ($self, %args) = @_;
 
@@ -327,7 +336,7 @@ sub handle_examples {
 }
 
 # after args
-sub handlemeta_features { {prio=>15} }
+sub handlemeta_features { {v=>2, prio=>15} }
 sub handle_features {
     my ($self, %args) = @_;
 
@@ -349,7 +358,7 @@ sub handle_features {
 }
 
 # run before args
-sub handlemeta_args_as { {prio=>1, convert=>1} }
+sub handlemeta_args_as { {v=>2, prio=>1, convert=>1} }
 sub handle_args_as {
     my ($self, %args) = @_;
 
@@ -438,7 +447,7 @@ sub handle_args_as {
     $self->{_args_token} = $tok;
 }
 
-sub handlemeta_args { {prio=>10, convert=>0} }
+sub handlemeta_args { {v=>2, prio=>10, convert=>0} }
 sub handle_args {
     require Data::Sah;
 
@@ -497,7 +506,7 @@ sub handle_args {
 }
 
 # XXX not implemented yet
-sub handlemeta_result { {prio=>50, convert=>0} }
+sub handlemeta_result { {v=>2, prio=>50, convert=>0} }
 sub handle_result {
     require Data::Sah;
 
@@ -523,7 +532,7 @@ sub handle_result {
     # XXX validation not implemented yet
 }
 
-sub handlemeta_result_naked { {prio=>90, convert=>1} }
+sub handlemeta_result_naked { {v=>2, prio=>90, convert=>1} }
 sub handle_result_naked {
     my ($self, %args) = @_;
 
@@ -545,7 +554,7 @@ sub handle_result_naked {
     }
 }
 
-sub handlemeta_deps { {prio=>0.5} }
+sub handlemeta_deps { {v=>2, prio=>0.5} }
 sub handle_deps {
     my ($self, %args) = @_;
     my $value = $args{value};
@@ -566,12 +575,12 @@ sub handle_deps {
     if ($value->{tmp_dir}) {
         $self->push_lines(
             'unless ($args{-tmp_dir}) { $res = [412, "Dep failed: '.
-                'please specify -tmp_dir"]; return $res }');
+                'please specify -tmp_dir"]; goto RETURN_RES }');
     }
     if ($value->{trash_dir}) {
         $self->push_lines(
             'unless ($args{-trash_dir}) { $res = [412, "Dep failed: '.
-                'please specify -trash_dir"]; return $res }');
+                'please specify -trash_dir"]; goto RETURN_RES }');
     }
     if ($value->{undo_trash_dir}) {
         $self->push_lines(join(
@@ -579,7 +588,7 @@ sub handle_deps {
             'unless ($args{-undo_trash_dir} || $args{-tx_manager} || ',
             '$args{-undo_action} && $args{-undo_action}=~/\A(?:undo|redo)\z/) ',
             '{ $res = [412, "Dep failed: ',
-            'please specify -undo_trash_dir"]; return $res }'
+            'please specify -undo_trash_dir"]; goto RETURN_RES }'
         ));
     }
 }
@@ -680,7 +689,11 @@ sub wrap {
             }
         }
         my $hm = $self->$meth;
+        $hm->{v} //= 1;
         next unless defined $hm->{prio};
+        die "Please update property handler $k which is still at v=$hm->{v} ".
+            "(needs v=$protocol_version)"
+                unless $hm->{v} == $protocol_version;
         my $ha = {
             prio=>$hm->{prio}, value=>$meta->{$k0}, property=>$k0,
             meth=>"handle_$k",
@@ -694,6 +707,9 @@ sub wrap {
         $handler_args{$k}  = $ha;
         $handler_metas{$k} = $hm;
     }
+
+    $self->select_section('before_return_res');
+    $self->push_lines('RETURN_RES:');
 
     for my $k (sort {$handler_args{$a}{prio} <=> $handler_args{$b}{prio}}
                    keys %handler_args) {
@@ -724,7 +740,7 @@ sub wrap {
 
     # return result
     $self->select_section('CLOSE_SUB');
-    $self->push_lines('$res;');
+    $self->push_lines('return $res;');
     $self->unindent;
     $self->push_lines('}');
 
