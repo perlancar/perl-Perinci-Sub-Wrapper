@@ -31,7 +31,8 @@ sub test_wrap {
         if (defined $test_args{wrap_status}) {
             is(ref($wrap_res), 'ARRAY', 'wrap res is array');
             is($wrap_res->[0], $test_args{wrap_status},
-               "wrap status is $test_args{wrap_status}");
+               "wrap status is $test_args{wrap_status}")
+                or diag "wrap res: ", explain($wrap_res);
         }
 
         return unless $wrap_res->[0] == 200;
