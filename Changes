@@ -1,5 +1,20 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.25     2012-07-31 (SHARYANTO)
+
+         [FIXES]
+
+         - Change handling of 'result_naked' property so that 'dies_on_error'
+           property can get result status + message properly.
+
+         [ENHANCEMENTS]
+
+         - Add argument: sub_name (also so that 'dies_on_error' property can
+           display proper die message showing subroutine name).
+
+         - Add argument: forbid_tags.
+
+
 0.24     2012-07-31 (SHARYANTO)
 
          [INCOMPATIBLE CHANGES]
