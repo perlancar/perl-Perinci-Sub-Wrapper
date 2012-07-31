@@ -143,7 +143,7 @@ sub push_lines {
         for my $l (@lines) {
             $l->[2] =
                 $self->{_cur_handler} ?
-                    "$self->{_cur_handler}"
+                    "$self->{_cur_handler} p=".$self->{_cur_handler_meta}{prio}
                         : "";
         }
     }
