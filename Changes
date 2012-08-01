@@ -1,5 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.26     2012-08-01 (SHARYANTO)
+
+         [ENHANCEMENTS]
+
+         - Add wrap_all_subs().
+
+
 0.25     2012-07-31 (SHARYANTO)
 
          [FIXES]
