@@ -24,6 +24,7 @@ sub test_wrap {
         my $wrap_eval_err = $@;
         if ($test_args{wrap_dies}) {
             ok($wrap_eval_err, "wrap dies");
+            return;
         } else {
             ok(!$wrap_eval_err, "wrap doesn't die") or diag $wrap_eval_err;
         }
@@ -49,6 +50,7 @@ sub test_wrap {
                     like($call_eval_err, $test_args{call_die_message},
                          "call die message");
                 }
+                return;
             } else {
                 ok(!$call_eval_err, "call doesn't die")
                     or diag $call_eval_err;
