@@ -473,7 +473,7 @@ sub handle_args {
                      schema|req|pos|greedy|
                      completion|
                      cmdline_aliases|
-                     src|cmdline_src
+                     cmdline_src
                  )(\..+)?\z/x;
             # XXX actually only summary/description can have .alt.lang.XXX
 
