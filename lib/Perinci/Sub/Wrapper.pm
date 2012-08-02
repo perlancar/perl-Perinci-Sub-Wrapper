@@ -995,7 +995,7 @@ sub wrap_all_subs {
 
     no strict 'refs';
 
-    my $metas = $ma->get_all_meta($package);
+    my $metas = $ma->get_all_metas($package);
     for my $f (keys %$metas) {
         next unless $f =~ /\A\w+\z/;
         my $osub  = \&{"$package\::$f"};
