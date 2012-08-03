@@ -5,12 +5,12 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
-use Perinci::Util qw(get_package_meta_accessor);
 use Module::Load;
+use Perinci::Util qw(get_package_meta_accessor);
+use Scalar::Util qw(blessed);
 
-require Exporter;
-our @ISA = qw(Exporter);
-our @EXPORT_OK = qw(wrap_sub wrap_all_subs);
+use Exporter qw(import);
+our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
 # VERSION
 
@@ -1017,6 +1017,28 @@ sub wrap_all_subs {
     }
 
     [200, "OK", $recap];
+}
+
+$SPEC{wrapped} = {
+    v => 1.1,
+    summary => 'Check whether we are wrapped',
+    description => <<'_',
+
+This function is to be run inside a subroutine that might be wrapped.
+
+_
+    args => {
+    },
+    args_as => 'array',
+    result => {
+        schema=>'bool*',
+    },
+    result_naked => 1,
+};
+sub wrapped {
+    no strict 'refs';
+    my @caller = caller(1);
+    blessed(\&{$caller[3]});
 }
 
 1;
