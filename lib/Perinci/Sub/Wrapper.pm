@@ -1051,12 +1051,20 @@ sub wrapped {
     my @c1 = caller(1); # we want to check our *caller's* caller
     my @c2 = caller(2); # and its caller
 
+    #use Data::Dump; dd \@c1; dd \@c2;
+
     # XXX wrapper can actually wrap into another package
 
     my $p = $default_wrapped_package;
 
-    $c1[0] eq $p && $c1[1] =~ /^\(eval/ && $c1[4] &&
-        $c2[0] eq $p && $c2[1] =~ /^\(eval/ && $c2[3] eq '(eval)' && !$c2[4];
+    $c1[0] eq $p &&
+    $c1[1] =~ /^\(eval/ &&
+    $c1[4] &&
+    $c2[0] eq $p &&
+    $c2[1] =~ /^\(eval/ &&
+    $c2[3] eq '(eval)' &&
+    !$c2[4] &&
+    1;
 }
 
 1;
