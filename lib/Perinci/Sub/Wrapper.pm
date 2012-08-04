@@ -22,9 +22,11 @@ our %SPEC;
 # which version it follows in its meta. if unspecified, it's assumed to be 1.
 our $protocol_version = 2;
 
+my $default_wrapped_package = 'Perinci::Sub::Wrapped';
+
 sub new {
     my ($class, %args) = @_;
-    $args{comppkg} //= "Perinci::Sub::Wrapped";
+    $args{comppkg} //= $default_wrapped_package;
     $args{indent}  //= " " x 4;
     bless \%args, $class;
 }
@@ -1024,7 +1026,12 @@ $SPEC{wrapped} = {
     summary => 'Check whether we are wrapped',
     description => <<'_',
 
-This function is to be run inside a subroutine that might be wrapped.
+This function is to be run inside a subroutine to check if *that* subroutine is
+wrapped by Perinci::Sub::Wrapper. For example:
+
+    sub some_sub {
+        print "I'm wrapped" if wrapped();
+    }
 
 _
     args => {
@@ -1037,8 +1044,19 @@ _
 };
 sub wrapped {
     no strict 'refs';
-    my @caller = caller(1);
-    blessed(\&{$caller[3]});
+
+    # should i check whether *i* am wrapped first? because that would throw off
+    # the stack counting.
+
+    my @c1 = caller(1); # we want to check our *caller's* caller
+    my @c2 = caller(2); # and its caller
+
+    # XXX wrapper can actually wrap into another package
+
+    my $p = $default_wrapped_package;
+
+    $c1[0] eq $p && $c1[1] =~ /^\(eval/ && $c1[4] &&
+        $c2[0] eq $p && $c2[1] =~ /^\(eval/ && $c2[3] eq '(eval)' && !$c2[4];
 }
 
 1;
