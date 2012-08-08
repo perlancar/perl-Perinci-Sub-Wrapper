@@ -144,7 +144,9 @@ sub push_lines {
     my $section = $self->{_cur_section};
 
     unless (exists $self->{_codes}{$section}) {
-        unshift @lines, "", "# * section: $section";
+        unshift @lines, "# * section: $section";
+        # don't give blank line for the top-most section (order=>0)
+        unshift @lines, "" if $self->_known_sections->{$section}{order};
         $self->{_codes}{$section} = [];
         $self->{_levels}{$section} = 0;
     }
