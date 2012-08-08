@@ -10,7 +10,7 @@ use Perinci::Util qw(get_package_meta_accessor);
 use Scalar::Util qw(blessed);
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
+our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped caller);
 
 # VERSION
 
@@ -990,7 +990,7 @@ _
 };
 sub wrap_all_subs {
     my %args      = @_;
-    my @caller    = caller(0);
+    my @caller    = CORE::caller(0);
     my $package   = $args{package}   // $caller[0];
     my $wrap_args = $args{wrap_args} // {};
 
@@ -1039,6 +1039,9 @@ wrapped by Perinci::Sub::Wrapper. For example:
         print "I'm wrapped" if wrapped();
     }
 
+See also this package's caller(), a wrapper-aware replacement for Perl's builtin
+caller().
+
 _
     args => {
     },
@@ -1054,12 +1057,10 @@ sub wrapped {
     # should i check whether *i* am wrapped first? because that would throw off
     # the stack counting.
 
-    my @c1 = caller(1); # we want to check our *caller's* caller
-    my @c2 = caller(2); # and its caller
+    my @c1 = CORE::caller(1); # we want to check our *caller's* caller
+    my @c2 = CORE::caller(2); # and its caller
 
     #use Data::Dump; dd \@c1; dd \@c2;
-
-    # XXX wrapper can actually wrap into another package
 
     my $p = $default_wrapped_package;
 
@@ -1071,6 +1072,47 @@ sub wrapped {
     $c2[3] eq '(eval)' &&
     !$c2[4] &&
     1;
+}
+
+$SPEC{caller} = {
+    v => 1.1,
+    summary => 'Wrapper-aware caller()',
+    description => <<'_',
+
+Just like Perl's builtin caller(), except that this one will ignore wrapper code
+in the call stack. You should use this if your code is potentially wrapped.
+
+_
+    args => {
+        n => {
+            pos => 0,
+        },
+    },
+    args_as => 'array',
+    result => {
+        schema=>'bool*',
+    },
+    result_naked => 1,
+};
+sub caller {
+    my $n0 = shift;
+    my $n  = $n0 // 0;
+
+    my @r;
+    my $i =  0;
+    my $j = -1;
+    while ($i <= $n+1) { # +1 for this sub itself
+        $j++;
+        @r = CORE::caller($j);
+        last unless @r;
+        if ($r[0] eq $default_wrapped_package && $r[1] =~ /^\(eval /) {
+            next;
+        }
+        $i++;
+    }
+
+    return unless @r;
+    return defined($n0) ? @r : $r[0];
 }
 
 1;
@@ -1133,6 +1175,20 @@ only the first part of the name will be used (i.e., C<handle_NAME1()>).
 =head1 METHODS
 
 The OO interface is only used internally or when you want to extend the wrapper.
+
+
+=head1 FAQ
+
+=head2 caller() doesn't work from inside my wrapped code!
+
+Wrapping adds at least one or two levels of calls: one for the wrapper
+subroutine itself, the other is for the eval trap loop which can be disabled but
+is enabled by default. The 'goto-&NAME' special form, which can replace
+subroutine and avoid adding another call level, cannot be used because wrapping
+also needs to postprocess function result.
+
+This poses a problem if you need to call caller() from within your wrapped code;
+it will be off by at least one or two also.
 
 
 =head1 SEE ALSO
