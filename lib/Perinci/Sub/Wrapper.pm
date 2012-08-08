@@ -771,7 +771,11 @@ sub wrap {
     }
 
     my $source = $self->_code_as_str;
-    $log->tracef("wrapper source code:\n%s", $source);
+    if ($log->is_trace) {
+        require SHARYANTO::String::Util;
+        $log->tracef("wrapper source code:\n%s",
+                     SHARYANTO::String::Util::linenum($source));
+    }
     my $result = {source=>$source};
     if ($compile) {
         my $wrapped = eval $source;
