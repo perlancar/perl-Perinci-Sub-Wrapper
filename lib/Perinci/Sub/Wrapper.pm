@@ -5,7 +5,6 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
-use Module::Load;
 use Perinci::Util qw(get_package_meta_accessor);
 use Scalar::Util qw(blessed);
 
@@ -687,7 +686,7 @@ sub wrap {
         my $meth = "handlemeta_$k";
         unless ($self->can($meth)) {
             # try a property module first
-            eval { load "Perinci/Sub/property/$k.pm" };
+            eval { require "Perinci/Sub/Property/$k.pm" };
             unless ($self->can($meth)) {
                 return [500, "Can't handle wrapping property $k0 ($meth)"];
             }
@@ -833,7 +832,7 @@ _
             description => <<'_',
 
 It is a good idea to supply this so that wrapper code can display this
-information when they need to (e.g. see Perinci::Sub::property::dies_on_error).
+information when they need to (e.g. see Perinci::Sub::Property::dies_on_error).
 
 _
         },
@@ -913,7 +912,7 @@ _
             description => <<'_',
 
 Some property wrapper, like dies_on_error (see
-Perinci::Sub::property::dies_on_error) has tags 'die', to signify that it can
+Perinci::Sub::Property::dies_on_error) has tags 'die', to signify that it can
 cause wrapping code to die.
 
 Sometimes such properties are not desirable, e.g. in daemon environment. The use
