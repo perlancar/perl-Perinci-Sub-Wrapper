@@ -1,5 +1,13 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.30     2012-08-09 (SHARYANTO)
+
+         [INCOMPATIBLE CHANGES]
+
+         - Now looks for property handler in Perinci::Sub::Property::* instead
+           of Perinci::Sub::property::* (fix casing).
+
+
 0.29     2012-08-08 (SHARYANTO)
 
          Add caller() function.
