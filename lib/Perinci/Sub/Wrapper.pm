@@ -1182,12 +1182,25 @@ The OO interface is only used internally or when you want to extend the wrapper.
 
 Wrapping adds at least one or two levels of calls: one for the wrapper
 subroutine itself, the other is for the eval trap loop which can be disabled but
-is enabled by default. The 'goto-&NAME' special form, which can replace
+is enabled by default. The 'goto &NAME' special form, which can replace
 subroutine and avoid adding another call level, cannot be used because wrapping
 also needs to postprocess function result.
 
 This poses a problem if you need to call caller() from within your wrapped code;
 it will be off by at least one or two also.
+
+The solution is for your function to use the caller() replacement, provided by
+this module.
+
+=head2 But that is not transparent!
+
+True. The wrapped function needs to load and use this module's wrapper
+deliberately.
+
+An alternative is for Perinci::Sub::Wrapper to use L<Sub::Uplevel>. This module
+does not use it because, as explained in its manpage, Sub::Uplevel is rather
+slow. On the other hand if you don't use caller(), your subroutine doesn't need
+uplevel-ing.
 
 
 =head1 SEE ALSO
