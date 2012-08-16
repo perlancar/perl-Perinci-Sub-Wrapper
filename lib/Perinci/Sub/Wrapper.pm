@@ -1199,8 +1199,8 @@ deliberately.
 
 An alternative is for Perinci::Sub::Wrapper to use L<Sub::Uplevel>. This module
 does not use it because, as explained in its manpage, Sub::Uplevel is rather
-slow. On the other hand if you don't use caller(), your subroutine doesn't need
-uplevel-ing.
+slow. If you don't use caller(), your subroutine actually doesn't need to care
+if it is wrapped nor it needs "uplevel-ing".
 
 
 =head1 SEE ALSO
