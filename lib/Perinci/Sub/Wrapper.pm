@@ -602,7 +602,6 @@ sub wrap {
     require Scalar::Util;
 
     my ($self, %args) = @_;
-    $log->tracef("-> wrap(%s)", \%args);
 
     my $sub      = $args{sub} or return [400, "Please specify sub"];
     $args{meta} or return [400, "Please specify meta"];
@@ -729,7 +728,6 @@ sub wrap {
         local $self->{_cur_handler}      = $meth;
         local $self->{_cur_handler_meta} = $handler_metas{$k};
         local $self->{_cur_handler_args} = $ha;
-        $log->tracef("Calling %s(%s) ...", $meth, $ha);
         $self->$meth(args=>\%args, meta=>$meta, %$ha);
     }
 
@@ -788,7 +786,6 @@ sub wrap {
         $result->{sub}  = $wrapped;
         $result->{meta} = $meta;
     }
-    $log->tracef("<- wrap()");
     [200, "OK", $result];
 }
 
