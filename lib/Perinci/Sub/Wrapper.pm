@@ -11,6 +11,8 @@ use Scalar::Util qw(blessed);
 use Exporter qw(import);
 our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped caller);
 
+our $Log_Wrapper_Code = $ENV{LOG_WRAPPER_CODE} // 0;
+
 # VERSION
 
 our %SPEC;
@@ -770,9 +772,9 @@ sub wrap {
     }
 
     my $source = $self->_code_as_str;
-    if ($log->is_trace) {
+    if ($Log_Wrapper_Code && $log->is_trace) {
         require SHARYANTO::String::Util;
-        $log->tracef("wrapper source code:\n%s",
+        $log->tracef("wrapper code:\n%s",
                      SHARYANTO::String::Util::linenum($source));
     }
     my $result = {source=>$source};
@@ -1168,9 +1170,22 @@ For properties that have name in the form of C<NAME1.NAME2.NAME3> (i.e., dotted)
 only the first part of the name will be used (i.e., C<handle_NAME1()>).
 
 
+=head1 VARIABLES
+
+=head2 $Log_Wrapper_Code (BOOL)
+
+Whether to log wrapper result. Default is from environment variable
+LOG_WRAPPER_CODE, or false. Logging is done with L<Log::Any> at trace level.
+
+
 =head1 METHODS
 
 The OO interface is only used internally or when you want to extend the wrapper.
+
+
+=head1 ENVIRONMENT
+
+LOG_WRAPPER_CODE
 
 
 =head1 FAQ
