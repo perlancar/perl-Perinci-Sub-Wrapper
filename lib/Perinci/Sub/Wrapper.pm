@@ -11,7 +11,7 @@ use Scalar::Util qw(blessed);
 use Exporter qw(import);
 our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped caller);
 
-our $Log_Perinci_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
+our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
 # VERSION
 
@@ -772,7 +772,7 @@ sub wrap {
     }
 
     my $source = $self->_code_as_str;
-    if ($Log_Perinci_Wrapper_Code && $log->is_trace) {
+    if ($Log_Wrapper_Code && $log->is_trace) {
         require SHARYANTO::String::Util;
         $log->tracef("wrapper code:\n%s",
                      SHARYANTO::String::Util::linenum($source));
@@ -1172,7 +1172,7 @@ only the first part of the name will be used (i.e., C<handle_NAME1()>).
 
 =head1 VARIABLES
 
-=head2 $Log_Perinci_Wrapper_Code (BOOL)
+=head2 $Log_Wrapper_Code (BOOL)
 
 Whether to log wrapper result. Default is from environment variable
 LOG_PERINCI_WRAPPER_CODE, or false. Logging is done with L<Log::Any> at trace
