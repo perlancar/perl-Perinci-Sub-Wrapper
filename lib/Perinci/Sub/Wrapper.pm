@@ -5,8 +5,9 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
-use Perinci::Util qw(get_package_meta_accessor);
-use Scalar::Util qw(blessed);
+use Perinci::Sub::Util qw(wrapres);
+use Perinci::Util      qw(get_package_meta_accessor);
+use Scalar::Util       qw(blessed);
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped caller);
@@ -993,7 +994,7 @@ sub wrap_all_subs {
     my $wrap_args = $args{wrap_args} // {};
 
     my $res = get_package_meta_accessor(package=>$package);
-    return [500, "Can't get meta accessor: $res->[0] - $res->[1]"]
+    return wrapres([500, "Can't get meta accessor: "], $res)
         unless $res->[0] == 200;
     my $ma = $res->[2];
 
@@ -1008,7 +1009,7 @@ sub wrap_all_subs {
         my $ometa = $metas->{$f};
         $recap->{$f} = {orig_sub => $osub, orig_meta => $ometa};
         $res = wrap_sub(%$wrap_args, sub => $osub, meta => $ometa);
-        return [500, "Can't wrap $package\::$f: $res->[0] - $res->[1]"]
+        return wrapres([500, "Can't wrap $package\::$f: "], $res)
             unless $res->[0] == 200;
         $recap->{$f}{new_sub}  = $res->[2]{sub};
         $recap->{$f}{new_meta} = $res->[2]{meta};
