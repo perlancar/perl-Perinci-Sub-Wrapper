@@ -57,12 +57,12 @@ test_wrap(
         my $newmeta = $wrap_res->[2]{meta};
         is($newmeta->{v}, 1.1, 'version');
         is_deeply($newmeta->{args},
-                  {a=>{schema=>['str'=>{default=>'x'}],
+                  {a=>{schema=>['str'=>{default=>'x'}, {}],
                        pos=>0, greedy=>1, cmdline_aliases=>{a1=>{}}},
-                   b=>{schema=>[int=>{}]}}, 'args')
+                   b=>{schema=>[int=>{}, {}]}}, 'args')
             or diag explain $newmeta->{args};
         is_deeply($newmeta->{result},
-                  {schema=>[int=>{}]}, 'result')
+                  {schema=>[int=>{}, {}]}, 'result')
             or diag explain $newmeta->{result};
 
 
@@ -92,9 +92,9 @@ test_wrap(
     posttest => sub {
         my ($wrap_res, $call_res) = @_;
         my $newmeta = $wrap_res->[2]{meta};
-        is_deeply($newmeta->{args}{a}{schema}, [int=>{}],
+        is_deeply($newmeta->{args}{a}{schema}, [int=>{}, {}],
                   "schemas by default are normalized (a)");
-        is_deeply($newmeta->{args}{b}{cmdline_aliases}{B}{schema}, [bool=>{}],
+        is_deeply($newmeta->{args}{b}{cmdline_aliases}{B}{schema},[bool=>{},{}],
                   "schemas in cmdline_aliases by default are normalized (b)");
     },
 );
