@@ -480,9 +480,10 @@ sub handle_args {
     return unless $v;
 
     my $rm = $self->{_args}{remove_internal_properties};
+    my $ns = $self->{_args}{normalize_schemas};
 
     # normalize schema
-    if ($self->{_args}{normalize_schemas}) {
+    if ($ns) {
         for my $an (keys %$v) {
             my $as = $v->{$an};
             if ($as->{schema}) {
@@ -537,7 +538,7 @@ sub handle_args {
                 data_name => $an,
                 data_term => $at,
                 schema    => $as->{schema},
-                schema_is_normalized  => 1,
+                schema_is_normalized  => $ns,
                 validator_return_type => 'str',
                 indent_level => $self->get_indent_level + 4,
             );
@@ -585,8 +586,10 @@ sub handle_result {
     my $v = $self->{_meta}{result};
     return unless $v;
 
+    my $ns = $self->{_args}{normalize_schemas};
+
     # normalize schema
-    if ($self->{_args}{normalize_schemas}) {
+    if ($ns) {
         if ($v->{schema}) {
             $v->{schema} = Data::Sah::normalize_schema($v->{schema});
         }
