@@ -58,8 +58,10 @@ sub _known_sections {
         # deprecated.
         before_call => {order=>30},
 
+        before_call_before_arg_validation => {order=>31},
+
         # argument validation now uses this, to get more specific ordering
-        before_call_arg_validation => {order=>30},
+        before_call_arg_validation => {order=>32},
 
         before_call_after_arg_validation => {order=>35},
 
@@ -102,14 +104,19 @@ sub _check_known_section {
     $ks->{$section} or die "BUG: Unknown code section '$section'";
 }
 
-sub _errif {
-    my ($self, $c_status, $c_msg, $c_cond) = @_;
-    $self->push_lines("if ($c_cond) {");
-    $self->indent;
+sub _err {
+    my ($self, $c_status, $c_msg) = @_;
     $self->push_lines(
         # we set $res here when we return from inside the eval block
         '$res = ' . "[$c_status, $c_msg]" . ';',
         'goto RETURN_RES;');
+}
+
+sub _errif {
+    my ($self, $c_status, $c_msg, $c_cond) = @_;
+    $self->push_lines("if ($c_cond) {");
+    $self->indent;
+    $self->_err($c_status, $c_msg);
     $self->unindent;
     $self->push_lines('}');
 }
@@ -135,6 +142,12 @@ sub unindent {
     $self->{_codes}{$section} //= undef;
     $self->{_levels}{$section}--;
     $self;
+}
+
+sub get_indent_level {
+    my ($self) = @_;
+    my $section = $self->{_cur_section};
+    $self->{_levels}{$section} // 0;
 }
 
 # line can be code or comment. code should not contain string literals that
@@ -346,7 +359,8 @@ sub handlemeta_features { {v=>2, prio=>15} }
 sub handle_features {
     my ($self, %args) = @_;
 
-    my $v = $self->{_meta}{features} // {};
+    my $meta = $self->{_meta};
+    my $v = $meta->{features} // {};
 
     $self->select_section('before_call_after_arg_validation');
 
@@ -457,6 +471,9 @@ sub handlemeta_args { {v=>2, prio=>10, convert=>0} }
 sub handle_args {
     require Data::Sah;
 
+    state $sah = Data::Sah->new;
+    state $plc = $sah->get_compiler("perl");
+
     my ($self, %args) = @_;
 
     my $v = $self->{_meta}{args};
@@ -464,10 +481,34 @@ sub handle_args {
 
     my $rm = $self->{_args}{remove_internal_properties};
 
+    # normalize schema
+    if ($self->{_args}{normalize_schemas}) {
+        for my $an (keys %$v) {
+            my $as = $v->{$an};
+            if ($as->{schema}) {
+                $as->{schema} =
+                    Data::Sah::normalize_schema($as->{schema});
+            }
+            my $als = $as->{cmdline_aliases};
+            if ($als) {
+                for my $al (keys %$als) {
+                    if ($als->{$al}{schema}) {
+                        $als->{$al}{schema} =
+                            Data::Sah::normalize_schema($als->{$al}{schema});
+                    }
+                }
+            }
+        }
+    }
+
+    $self->select_section('before_call_arg_validation');
+    $self->push_lines('', '# check arguments') if keys %$v;
+
     # validation
-    for my $an (keys %$v) {
+    my @modules;
+    for my $an (sort keys %$v) {
         my $as = $v->{$an};
-        for (keys %$as) {
+        for (sort keys %$as) {
             if (/\A_/) {
                 delete $as->{$_} if $rm;
                 next;
@@ -488,26 +529,49 @@ sub handle_args {
             # XXX there should not be another argument with req=>1 + pos=>0,
             # there must not be one if there is argument with src.
         }
-    }
 
-    # normalize schema
-    if ($self->{_args}{normalize_schemas}) {
-        for my $an (keys %$v) {
-            my $as = $v->{$an};
-            if ($as->{schema}) {
-                $as->{schema} =
-                    Data::Sah::normalize_schema($as->{schema});
+        my $at = "\$args{'$an'}";
+
+        if ($as->{schema}) {
+            my $cd = $plc->compile(
+                data_name => $an,
+                data_term => $at,
+                schema    => $as->{schema},
+                schema_is_normalized  => 1,
+                validator_return_type => 'str',
+                indent_level => $self->get_indent_level + 4,
+            );
+            for (@{ $cd->{modules} }) {
+                push @modules, $_ unless $_ ~~ @modules;
             }
-            my $als = $as->{cmdline_aliases};
-            if ($als) {
-                for my $al (keys %$als) {
-                    if ($als->{$al}{schema}) {
-                        $als->{$al}{schema} =
-                            Data::Sah::normalize_schema($als->{$al}{schema});
-                    }
-                }
+            $self->push_lines("if (exists($at)) {");
+            $self->indent;
+            $self->push_lines("my \$err_$an;\n$cd->{result};");
+            $self->_errif(
+                400, qq["Invalid value for argument '$an': \$err_$an"],
+                "\$err_$an");
+            $self->unindent;
+            if ($as->{req}) {
+                $self->push_lines("} else {");
+                $self->indent;
+                $self->_err(400, qq["Missing required argument: $an"]);
+                $self->unindent;
+                $self->push_lines("}");
+            } else {
+                $self->push_lines("}");
+            }
+        } else {
+            if ($as->{req}) {
+                $self->_errif(400, qq["Missing required argument '$an'"],
+                              "!exists($at)");
             }
         }
+    }
+
+    if (@modules) {
+        $self->select_section('before_call_before_arg_validation');
+        $self->push_lines('', '# load required modules for validation');
+        $self->push_lines("require $_;") for @modules;
     }
 }
 
