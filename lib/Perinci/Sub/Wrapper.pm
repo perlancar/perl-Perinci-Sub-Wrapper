@@ -533,11 +533,12 @@ sub handle_args {
 
         my $at = "\$args{'$an'}";
 
-        if ($as->{schema}) {
+        my $sch = $as->{schema};
+        if ($sch) {
             my $cd = $plc->compile(
                 data_name => $an,
                 data_term => $at,
-                schema    => $as->{schema},
+                schema    => $sch,
                 schema_is_normalized  => $ns,
                 validator_return_type => 'str',
                 indent_level => $self->get_indent_level + 4,
@@ -545,7 +546,8 @@ sub handle_args {
             for (@{ $cd->{modules} }) {
                 push @modules, $_ unless $_ ~~ @modules;
             }
-            $self->push_lines("if (exists($at)) {");
+            my $schema_gives_default = exists($sch->[1]{default}) ? 1:0;
+            $self->push_lines("if ($schema_gives_default || exists($at)) {");
             $self->indent;
             $self->push_lines("my \$err_$an;\n$cd->{result};");
             $self->_errif(
