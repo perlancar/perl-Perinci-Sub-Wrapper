@@ -546,7 +546,8 @@ sub handle_args {
             for (@{ $cd->{modules} }) {
                 push @modules, $_ unless $_ ~~ @modules;
             }
-            my $schema_gives_default = exists($sch->[1]{default}) ? 1:0;
+            my $schema_gives_default = ref($sch) eq 'ARRAY' &&
+                exists($sch->[1]{default}) ? 1:0;
             $self->push_lines("if ($schema_gives_default || exists($at)) {");
             $self->indent;
             $self->push_lines("my \$err_$an;\n$cd->{result};");
