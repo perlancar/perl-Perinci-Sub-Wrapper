@@ -58,12 +58,19 @@ sub _known_sections {
         # deprecated.
         before_call => {order=>30},
 
-        before_call_before_arg_validation => {order=>31},
+        # used by args_as handler to initialize %args from input data (@_)
+        before_call_accept_args => {order=>31},
 
-        # argument validation now uses this, to get more specific ordering
+        # used e.g. to load modules used by validation
+        before_call_before_arg_validation => {order=>32},
+
         before_call_arg_validation => {order=>32},
 
-        before_call_after_arg_validation => {order=>35},
+        # used e.g. by dependency checking
+        before_call_after_arg_validation => {order=>33},
+
+        # feed arguments to function
+        before_call_feed_args => {order=>49},
 
         # reserved by the wrapper for calling the function
         CALL => {order=>50},
@@ -362,7 +369,7 @@ sub handle_features {
     my $meta = $self->{_meta};
     my $v = $meta->{features} // {};
 
-    $self->select_section('before_call_after_arg_validation');
+    $self->select_section('before_call_before_arg_validation');
 
     if ($v->{tx} && $v->{tx}{req}) {
         $self->push_lines('', '# check required transaction');
@@ -403,7 +410,7 @@ sub handle_args_as {
     # they have to undergo a round-trip to hash even when both accept 'array').
     # This will be rectified in the future.
 
-    $self->select_section('before_call_arg_validation');
+    $self->select_section('before_call_accept_args');
 
     my $v = $new // $value;
     $self->push_lines('', "# accept arguments ($v)");
@@ -433,8 +440,7 @@ sub handle_args_as {
     }
 
     my $tok;
-    $self->push_lines('', "# convert arguments for wrapped function ($value)")
-        unless $v eq $value;
+    $self->select_section('before_call_feed_args');
     $v = $value;
     if ($v eq 'hash') {
         $tok = '%args';
@@ -605,7 +611,7 @@ sub handle_result {
         }
     }
 
-    # XXX validation not implemented yet
+    # XXX result validation not implemented yet
 }
 
 sub handlemeta_result_naked { {v=>2, prio=>100, convert=>1} }
@@ -1096,53 +1102,6 @@ sub wrap_all_subs {
     [200, "OK", $recap];
 }
 
-$SPEC{wrapped} = {
-    v => 1.1,
-    summary => 'Check whether we are wrapped',
-    description => <<'_',
-
-This function is to be run inside a subroutine to check if *that* subroutine is
-wrapped by Perinci::Sub::Wrapper. For example:
-
-    sub some_sub {
-        print "I'm wrapped" if wrapped();
-    }
-
-See also this package's caller(), a wrapper-aware replacement for Perl's builtin
-caller().
-
-_
-    args => {
-    },
-    args_as => 'array',
-    result => {
-        schema=>'bool*',
-    },
-    result_naked => 1,
-};
-sub wrapped {
-    no strict 'refs';
-
-    # should i check whether *i* am wrapped first? because that would throw off
-    # the stack counting.
-
-    my @c1 = CORE::caller(1); # we want to check our *caller's* caller
-    my @c2 = CORE::caller(2); # and its caller
-
-    #use Data::Dump; dd \@c1; dd \@c2;
-
-    my $p = $default_wrapped_package;
-
-    $c1[0] eq $p &&
-    $c1[1] =~ /^\(eval/ &&
-    $c1[4] &&
-    $c2[0] eq $p &&
-    $c2[1] =~ /^\(eval/ &&
-    $c2[3] eq '(eval)' &&
-    !$c2[4] &&
-    1;
-}
-
 $SPEC{caller} = {
     v => 1.1,
     summary => 'Wrapper-aware caller()',
@@ -1193,8 +1152,8 @@ sub caller {
 
  use Perinci::Sub::Wrapper qw(wrap_sub);
  my $res = wrap_sub(sub => sub {die "test\n"}, meta=>{...});
- my ($wrapped, $meta) = ($res->[2]{sub}, $res->[2]{meta});
- $wrapped->(); # call the wrapped function
+ my ($wrapped_sub, $meta) = ($res->[2]{sub}, $res->[2]{meta});
+ $wrapped_sub->(); # call the wrapped function
 
 
 =head1 DESCRIPTION
@@ -1212,11 +1171,45 @@ C<retry> (by wrapping function call inside a simple retry loop).
 
 It can also be used to convert argument passing style, e.g. from C<args_as>
 C<array> to C<args_as> C<hash>, so you can call function using named arguments
-even though the function accepts positional arguments.
+even though the function accepts positional arguments, or vice versa.
 
 There are many other possible uses.
 
 This module uses L<Log::Any> for logging.
+
+
+=head1 USAGE
+
+Suppose you have a subroutine like this:
+
+ sub gen_random_array {
+     my %args = @_;
+     my $len = $args{len} // 10;
+     die "Length too big" if $len > 1000;
+     die "Please specify at least length=1" if $len < 1;
+     [map {rand} 1..$len];
+ }
+
+Wrapping can, among others, validate arguments and give default values. First
+you add a L<Rinci> metadata to your subroutine:
+
+ our %SPEC;
+ $SPEC{gen_random_array} = {
+     summary=> 'Generate an array of specified length containing random values',
+     args => {
+         len => {req=>1, schema => ["int*" => between => [1, 1000]]},
+     },
+     result_naked=>1,
+ };
+
+You can then remove code that validates arguments and gives default values. You
+might also want to make sure that your subroutine is run wrapped.
+
+ sub gen_random_array {
+     my %args = @_;
+     die "This subroutine needs wrapping" unless $args{-wrapped}; # optional
+     [map {rand} 1..$args{len}];
+ }
 
 
 =head1 EXTENDING
@@ -1261,6 +1254,19 @@ LOG_PERINCI_WRAPPER_CODE
 
 
 =head1 FAQ
+
+=head2 How do I tell if I am being wrapped?
+
+Wrapper code passes C<-wrapped> special argument with a true value. So you can
+do something like this:
+
+ sub my_sub {
+     my %args = @_;
+     return [412, "I need to be wrapped"] unless $args{-wrapped};
+     ...
+ }
+
+Your subroutine needs accept arguments as hash/hashref.
 
 =head2 caller() doesn't work from inside my wrapped code!
 
