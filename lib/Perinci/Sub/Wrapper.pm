@@ -1281,10 +1281,10 @@ this module.
 True. The wrapped function needs to load and use this module's wrapper
 deliberately.
 
-An alternative is for Perinci::Sub::Wrapper to use L<Sub::Uplevel>. This module
-does not use it because, as explained in its manpage, Sub::Uplevel is rather
-slow. If you don't use caller(), your subroutine actually doesn't need to care
-if it is wrapped nor it needs "uplevel-ing".
+An alternative is for Perinci::Sub::Wrapper to use L<Sub::Uplevel>. Currently
+though, this module does not use Sub::Uplevel because, as explained in its
+manpage, it is rather slow. If you don't use caller(), your subroutine actually
+doesn't need to care if it is wrapped nor it needs "uplevel-ing".
 
 
 =head1 SEE ALSO
