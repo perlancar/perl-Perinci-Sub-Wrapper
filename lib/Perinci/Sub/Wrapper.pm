@@ -1271,7 +1271,7 @@ subroutine and avoid adding another call level, cannot be used because wrapping
 also needs to postprocess function result.
 
 This poses a problem if you need to call caller() from within your wrapped code;
-it will be off by at least one or two also.
+it will also be off by at least one or two.
 
 The solution is for your function to use the caller() replacement, provided by
 this module.
