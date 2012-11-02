@@ -444,6 +444,7 @@ sub handle_args_as {
     } else {
         die "Unknown args_as value '$v'";
     }
+    $self->push_lines('$args{-wrapped} = 1;');
 
     my $tok;
     $self->select_section('before_call_feed_args');
