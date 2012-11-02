@@ -9,7 +9,7 @@ use Test::Perinci::Sub::Wrapper qw(test_wrap);
 
 my $sub = sub {
     my %args = @_;
-    [200, "OK", join(",", map{"$_=".($args{$_}//"")} "a".."e")];
+    [200, "OK", join("", map{"$_=".($args{$_}//"")."\n"} "a".."e")];
 };
 my $meta;
 
@@ -24,77 +24,145 @@ $meta = {v=>1.1, args=>{a=>{_foo=>1}}};
 test_wrap(
     name        => 'arg spec key prefixed by _ is ignored',
     wrap_args   => {sub => $sub, meta => $meta},
-    wrap_status => 200,
 );
 
-my @t;
+{
+    my $sub = sub { my %args=@_; [200, "OK", $args{-wrapped} ? 1:0] };
+    $meta = {v=>1.1};
+    test_wrap(
+        name        => '-wrapper special argument is passed',
+        wrap_args   => {sub => $sub, meta => $meta},
+        calls       => [
+            {argsr=>[a=>1], status=>200, res=>[200, "OK", 1]},
+        ],
+    );
+}
 
-$meta = {
-    v => 1.1,
-    args => {
-        a => {
-            summary => 'req arg, has default',
-            req => 1,
-            schema => [int => min=>1, max=>100, default=>10],
-        },
-        b => {
-            summary => 'req arg, has no default',
-            req => 1,
-            schema => "int",
-        },
-        c => {
-            summary => 'req arg, req schema',
-            req => 1,
-            schema => "int*",
-        },
-        d => {
-            summary => 'has default',
-            schema => [int => {min=>1, max=>100, default=>40}],
-        },
-        e => {
-            summary => 'has no default',
-            schema => [int => {min=>1, max=>100}],
-        },
-    },
-};
+$meta = {v=>1.1, args=>{a=>{req=>1, schema=>'int*'}}};
 test_wrap(
-    name        => 'basics',
+    name        => 'req arg + schema req no default',
     wrap_args   => {sub => $sub, meta => $meta},
-    wrap_status => 200,
     calls       => [
-        {name => 'arg schema checked (b invalid)',
-         argsr => [a=>101, b=>101, c=>1], status => 400},
-        {name => 'arg schema checked (c req value)',
-         argsr => [a=>101, b=>1, c=>undef], status => 400},
+        {argsr=>[a=>1], status=>200, name=>'ok'},
+        {argsr=>[a=>1, -b=>1], status=>200, name=>'unknown special arg ok'},
 
-        @t = (
-            {name => 'normal',
-             argsr => [a=>1, b=>1, c=>1], status => 200},
-            {name => 'req arg checked (b missing)',
-             argsr => [a=>1, c=>1], status => 400},
-            {name => 'req arg checked #2 (undef is ok for b)',
-             argsr => [a=>1, c=>1, b=>undef], status => 200},
+        {argsr=>[a=>1, b=>1], status=>400, name=>'unknown arg'},
+        {argsr=>["a b"=>1], status=>400, name=>'invalid arg name'},
 
-            {name => 'unknown arg rejected',
-             argsr => [a=>1, b=>1, c=>1, f=>1], status => 400},
-            {name => 'invalid arg checked',
-             argsr => [a=>1, " "=>1], status => 400},
-            {name => 'unknown special arg not checked',
-             argsr => [a=>1, -b=>1], status => 200},
-        ),
+        {argsr=>[], status=>400, name=>'missing arg'},
+        {argsr=>[a=>"x"], status=>400, name=>'invalid arg value'},
+        {argsr=>[a=>undef], status=>400, name=>'undef arg value'},
+    ],
+);
+test_wrap(
+    name        => 'opt: validate_args=0',
+    wrap_args   => {sub => $sub, meta => $meta, validate_args=>0},
+    calls       => [
+        {argsr=>[], status=>400, name=>'missing arg'},
+        {argsr=>[a=>"x"], status=>200, name=>'invalid arg value'},
+        {argsr=>[a=>undef], status=>200, name=>'undef arg value'},
+    ],
+);
+{
+    local $meta->{"_perinci.sub.wrapper.validate_args"} = 0;
+    test_wrap(
+        name        => 'opt via metadata attr: validate_args=0',
+        wrap_args   => {sub => $sub, meta => $meta},
+        calls       => [
+            {argsr=>[], status=>400, name=>'missing arg'},
+            {argsr=>[a=>"x"], status=>200, name=>'invalid arg value'},
+            {argsr=>[a=>undef], status=>200, name=>'undef arg value'},
+        ],
+    );
+}
+test_wrap(
+    name        => 'opt: allow_invalid_args=1',
+    wrap_args   => {sub => $sub, meta => $meta, allow_invalid_args=>1},
+    calls       => [
+        {argsr=>[a=>1, "a b"=>1], status=>200, name=>'invalid arg name'},
+    ],
+);
+test_wrap(
+    name        => 'opt: allow_unknown_args=1',
+    wrap_args   => {sub => $sub, meta => $meta, allow_unknown_args=>1},
+    calls       => [
+        {argsr=>[a=>1, b=>1], status=>200, name=>'unknown arg'},
     ],
 );
 
+$meta = {v=>1.1, args=>{a=>{req=>1, schema=>[int => default=>10]}}};
 test_wrap(
-    name        => 'opt: validate_args=0',
-    wrap_args   => {sub => $sub, meta => $meta, validate_args => 0},
-    wrap_status => 200,
+    name        => 'req arg + schema no req with default',
+    wrap_args   => {sub => $sub, meta => $meta},
     calls       => [
-        # the only difference is here
-        {name => 'arg schema not checked', argsr => [a=>11], status => 200},
+        {argsr=>[], status=>200, actual_res_re=>qr/^a=10/m,
+         name=>'missing arg -> default supplied'},
+        {argsr=>[a=>undef], status=>200, actual_res_re=>qr/^a=10/m,
+         name=>'undef arg value -> default supplied'},
+        {argsr=>[a=>"x"], status=>400, name=>'invalid arg value'},
+    ],
+);
+test_wrap(
+    name        => 'default supplied even when validate_args=0',
+    wrap_args   => {sub => $sub, meta => $meta, validate_args=>0},
+    calls       => [
+        {argsr=>[], status=>200, actual_res_re=>qr/^a=10/m,
+         name=>'missing arg -> default supplied'},
+        {argsr=>[a=>undef], status=>200, actual_res_re=>qr/^a=10/m,
+         name=>'undef arg value -> default supplied'},
+    ],
+);
 
-        # the rest are the same
-        @t,
+$meta = {v=>1.1, args=>{a=>{req=>1, schema=>'int'}}};
+test_wrap(
+    name        => 'req arg + schema no req no default',
+    wrap_args   => {sub => $sub, meta => $meta},
+    calls       => [
+        {argsr=>[], status=>400, name=>'missing arg'},
+        {argsr=>[a=>undef], status=>200, name=>'undef arg value'},
+    ],
+);
+
+$meta = {v=>1.1, args=>{a=>{req=>1}}};
+test_wrap(
+    name        => 'req arg + no schema',
+    wrap_args   => {sub => $sub, meta => $meta},
+    calls       => [
+        {argsr=>[], status=>400, name=>'missing arg'},
+        {argsr=>[a=>undef], status=>200, name=>'undef arg value'},
+    ],
+);
+
+$meta = {v=>1.1, args=>{a=>{}}};
+test_wrap(
+    name        => 'no req arg + schema no req with default',
+    wrap_args   => {sub => $sub, meta => $meta},
+    calls       => [
+        {argsr=>[], status=>200, name=>'missing arg'},
+        {argsr=>[a=>undef], status=>200, name=>'undef arg value'},
+    ],
+);
+
+$meta = {v=>1.1, args=>{a=>{schema=>[int => default=>10]}}};
+test_wrap(
+    name        => 'no req arg + schema with default',
+    wrap_args   => {sub => $sub, meta => $meta},
+    calls       => [
+        {argsr=>[], status=>200, actual_res_like=>qr/^a=10/m,
+         name=>'missing arg'},
+        {argsr=>[a=>undef], status=>200, actual_res_like=>qr/^a=10/m,
+         name=>'undef arg value'},
+    ],
+);
+$meta = {v=>1.1, args=>{a=>{schema=>[int => default=>10]}}};
+test_wrap(
+    name        => 'default supplied even when validate_args=0',
+    wrap_args   => {sub => $sub, meta => $meta, validate_args=>0},
+    calls       => [
+        {argsr=>[], status=>200, actual_res_like=>qr/^a=10/m,
+         name=>'missing arg'},
+        {argsr=>[a=>undef], status=>200, actual_res_like=>qr/^a=10/m,
+         name=>'undef arg value'},
     ],
 );
 

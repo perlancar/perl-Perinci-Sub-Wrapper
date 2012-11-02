@@ -60,13 +60,19 @@ sub test_wrap {
                 is(ref($call_res), 'ARRAY', 'call res is array')
                     or diag "call res = ", explain($call_res);
                 is($call_res->[0], $test_args{call_status},
-                   "call status is $test_args{call_status}");
+                   "call status is $test_args{call_status}")
+                    or diag "call res = ", explain($call_res);
             }
 
             if (exists $test_args{call_res}) {
                 is_deeply($call_res, $test_args{call_res},
                           "call res")
                     or diag explain $call_res;
+            }
+
+            if (exists $test_args{call_actual_res_re}) {
+                like($call_res->[2], $test_args{call_actual_res_re},
+                     "call actual res");
             }
         }
 
@@ -95,12 +101,17 @@ sub test_wrap {
                         is(ref($res), 'ARRAY', 'res is array')
                             or diag "res = ", explain($res);
                         is($res->[0], $call->{status},
-                           "status is $call->{status}");
+                           "status is $call->{status}")
+                            or diag "res = ", explain($res);
                     }
 
                     if (exists $call->{res}) {
                         is_deeply($res, $call->{res}, "res")
                             or diag explain $res;
+                    }
+
+                    if (exists $call->{actual_res_re}) {
+                        like($res->[2], $call->{actual_res_re}, "actual res");
                     }
                 }; # subtest call #$i
             }

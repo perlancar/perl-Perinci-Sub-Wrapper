@@ -372,91 +372,7 @@ test_wrap(
     call_res => 4,
 );
 
-# test wrapping 'deps' property
-
-$sub = sub {[200,"OK"]};
-$meta = {v=>1.1, args=>{}, deps=>{env=>"A"}};
-{
-    local $ENV{A};
-    test_wrap(
-        name => 'deps 1',
-        wrap_args => {sub => $sub, meta => $meta},
-        wrap_status => 200,
-        call_argsr => [],
-        call_status => 412,
-    );
-    $ENV{A} = 1;
-    test_wrap(
-        name => 'deps 2',
-        wrap_args => {sub => $sub, meta => $meta},
-        wrap_status => 200,
-        call_argsr => [],
-        call_status => 200,
-    );
-
-    # XXX test under trap=0
-}
-
-# test wrapping 'features' property
-
-$sub = sub {[200,"OK"]};
-$meta = {v=>1.1, features=>{tx=>{req=>1}}};
-{
-    test_wrap(
-        name => 'deps 1',
-        wrap_args => {sub => $sub, meta => $meta},
-        wrap_status => 200,
-        call_argsr => [],
-        call_status => 412,
-    );
-    test_wrap(
-        name => 'deps 1',
-        wrap_args => {sub => $sub, meta => $meta},
-        wrap_status => 200,
-        call_argsr => [-tx_manager=>"dummy"],
-        call_status => 200,
-    );
-
-    # XXX test under trap=0
-}
-
-$sub = sub { [200, "OK"] };
-$meta = {
-    v=>1.1,
-    args=>{a=>{pos=>0, schema=>"int", _argspec1=>"internal"}, b=>{pos=>1}},
-    _prop1=>"internal",
-    result=>{_res1=>"1"},
-    examples=>[{_ex1=>"1"}],
-    links=>[{_ln1=>"1"}],
-};
-test_wrap(
-    name => '(remove_internal_properties=1, default)',
-    wrap_args => {sub => $sub, meta => $meta},
-    wrap_status => 200,
-    posttest => sub {
-        my ($wrap_res, $call_res) = @_;
-        my $newmeta = $wrap_res->[2]{meta};
-        ok(!exists($newmeta->{_prop1}), "_prop1 removed");
-        ok(!exists($newmeta->{args}{a}{_argspec1}), "_argspec1 removed");
-        ok(!exists($newmeta->{result}{_res1}), "_res1 removed");
-        ok(!exists($newmeta->{examples}[0]{_ex1}), "_ex1 removed");
-        ok(!exists($newmeta->{links}[0]{_ln1}), "_ln1 removed");
-    },
-);
-test_wrap(
-    name => '(remove_internal_properties=0)',
-    wrap_args => {sub => $sub, meta => $meta, remove_internal_properties=>0},
-    wrap_status => 200,
-    posttest => sub {
-        my ($wrap_res, $call_res) = @_;
-        my $newmeta = $wrap_res->[2]{meta};
-        ok($newmeta->{_prop1}, "_prop1 exists");
-        ok($newmeta->{args}{a}{_argspec1}, "_argspec1 exists");
-        ok($newmeta->{result}{_res1}, "_res1 exists");
-        ok($newmeta->{examples}[0]{_ex1}, "_ex1 exists");
-        ok($newmeta->{links}[0]{_ln1}, "_ln1 exists");
-    },
-);
+# test convert default_lang
 
 $meta = {
     v=>1.1,
@@ -509,43 +425,6 @@ test_wrap(
         wrap_status => 412,
     );
 }
-
-# XXX test args schema + opt validate_args=0
-
-{
-    my $meta = {
-        v => 1.1,
-    };
-    my $sub = sub {
-        my %args = @_;
-        if ($args{which} == 1) {
-        } elsif ($args{which} == 2) {
-        } elsif ($args{which} == 3) {
-        }
-    };
-
-    test_wrap(
-        name => 'result property (schema)',
-    );
-
-    # XXX test opt: validate_result=0
-}
-
-{
-    my $meta = {
-        v => 1.1,
-    };
-    my $sub = sub {
-        my %args = @_;
-        if ($args{which} == 1) {
-        } elsif ($args{which} == 2) {
-        } elsif ($args{which} == 3) {
-        }
-    };
-
-    test_wrap(
-    name => 'result property (statuses, 1)'
-);
 
 DONE_TESTING:
 done_testing();

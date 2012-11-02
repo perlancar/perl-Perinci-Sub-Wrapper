@@ -530,20 +530,11 @@ sub handle_args {
     unless ($self->{_args}{allow_invalid_args}) {
         $self->push_lines('for (keys %args) {');
         $self->indent;
-        $self->push_lines('unless (/\A(-?)\w+\z/o) {');
-        $self->indent;
-        $self->push_lines(q{$res = [400, "Invalid argument name '$_'"]; }.
-                              'goto RETURN_RES;');
-        $self->unindent;
-        $self->push_lines('}');
+        $self->_errif(400, q["Invalid argument name '$_'"], '!/\A(-?)\w+\z/o');
         unless ($self->{_args}{allow_unknown_args}) {
-            $self->push_lines(
-                'unless ($1 || $_ ~~ '.__squote([keys %$v]).') {');
-            $self->indent;
-            $self->push_lines(q{$res = [400, "Unknown argument '$_'"]; }.
-                                  'goto RETURN_RES;');
-            $self->unindent;
-            $self->push_lines('}');
+            $self->_errif(
+                400, q["Unknown argument '$_'"],
+                '!($1 || $_ ~~ '.__squote([keys %$v]).')');
         }
         $self->unindent;
         $self->push_lines('}');
@@ -572,41 +563,45 @@ sub handle_args {
         my $at = "\$args{'$an'}";
 
         my $sch = $as->{schema};
-        if ($sch && $va) {
-            my $cd = $self->_plc->compile(
-                data_name            => $an,
-                data_term            => $at,
-                schema               => $sch,
-                schema_is_normalized => $ns,
-                return_type          => 'str',
-                indent_level         => $self->get_indent_level + 4,
-            );
-            for (@{ $cd->{modules} }) {
-                push @modules, $_ unless $_ ~~ @modules;
-            }
-            my $schema_gives_default = ref($sch) eq 'ARRAY' &&
+        if ($sch) {
+            my $has_default = ref($sch) eq 'ARRAY' &&
                 exists($sch->[1]{default}) ? 1:0;
-            $self->push_lines("if ($schema_gives_default || exists($at)) {");
-            $self->indent;
-            $self->push_lines("my \$err_$an;\n$cd->{result};");
-            $self->_errif(
-                400, qq["Invalid value for argument '$an': \$err_$an"],
-                "\$err_$an");
-            $self->unindent;
-            if ($as->{req}) {
-                $self->push_lines("} else {");
+            if ($va) {
+                my $cd = $self->_plc->compile(
+                    data_name            => $an,
+                    data_term            => $at,
+                    schema               => $sch,
+                    schema_is_normalized => $ns,
+                    return_type          => 'str',
+                    indent_level         => $self->get_indent_level + 4,
+                );
+                for (@{ $cd->{modules} }) {
+                    push @modules, $_ unless $_ ~~ @modules;
+                }
+                $self->push_lines("if (exists($at)) {");
                 $self->indent;
-                $self->_err(400, qq["Missing required argument: $an"]);
+                $self->push_lines("my \$err_$an;\n$cd->{result};");
+                $self->_errif(
+                    400, qq["Invalid value for argument '$an': \$err_$an"],
+                    "\$err_$an");
                 $self->unindent;
-                $self->push_lines("}");
+                if ($has_default) {
+                    $self->push_lines(
+                        '} else {',
+                        "    $at //= ".__squote($sch->[1]{default}).";",
+                        '}');
+                } else {
+                    $self->push_lines('}');
+                }
             } else {
-                $self->push_lines("}");
+                $self->push_lines(
+                    "$at //= ".__squote($sch->[1]{default}).';')
+                    if $has_default;
             }
-        } else {
-            if ($as->{req}) {
-                $self->_errif(400, qq["Missing required argument '$an'"],
-                              "!exists($at)");
-            }
+        }
+        if ($as->{req}) {
+            $self->_errif(
+                400, qq["Missing required argument: $an"], "!exists($at)");
         }
     }
 
@@ -712,8 +707,6 @@ sub handle_result {
 sub handlemeta_result_naked { {v=>2, prio=>100, convert=>1} }
 sub handle_result_naked {
     my ($self, %args) = @_;
-
-    # XXX option to check whether result is really naked
 
     my $old = $args{value};
     my $v   = $args{new} // $old;
@@ -932,6 +925,28 @@ sub wrap {
         # temporarily.
         $self->push_lines('# add temporary envelope',
                           '$res = [200, "OK", $res];');
+    } else {
+        $self->push_lines(
+            '',
+            '# check that sub produces enveloped result',
+            'unless (ref($res) eq "ARRAY" && $res->[0]) {',
+        );
+        $self->indent;
+        if ($log->is_trace) {
+            $self->push_lines(
+                'require Data::Dumper;',
+                'local $Data::Dumper::Purity   = 1;',
+                'local $Data::Dumper::Terse    = 1;',
+                'local $Data::Dumper::Indent   = 0;',
+                '$res = [500, "BUG: Sub does not produce envelope: ".'.
+                    'Data::Dumper::Dumper($res)];');
+        } else {
+            $self->push_lines(
+                '$res = [500, "BUG: Sub does not produce envelope"];');
+        }
+        $self->push_lines('goto RETURN_RES;');
+        $self->unindent;
+        $self->push_lines('}');
     }
 
     if ($args{trap} || $self->_needs_eval) {
