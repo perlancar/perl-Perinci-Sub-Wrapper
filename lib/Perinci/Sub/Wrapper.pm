@@ -1353,6 +1353,7 @@ you add a L<Rinci> metadata to your subroutine:
 
  our %SPEC;
  $SPEC{gen_random_array} = {
+     v => 1.1,
      summary=> 'Generate an array of specified length containing random values',
      args => {
          len => {req=>1, schema => ["int*" => between => [1, 1000]]},
