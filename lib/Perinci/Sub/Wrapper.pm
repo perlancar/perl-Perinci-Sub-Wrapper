@@ -10,7 +10,7 @@ use Perinci::Util      qw(get_package_meta_accessor);
 use Scalar::Util       qw(blessed);
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped caller);
+our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
@@ -1267,47 +1267,6 @@ sub wrap_all_subs {
     [200, "OK", $recap];
 }
 
-$SPEC{caller} = {
-    v => 1.1,
-    summary => 'Wrapper-aware caller()',
-    description => <<'_',
-
-Just like Perl's builtin caller(), except that this one will ignore wrapper code
-in the call stack. You should use this if your code is potentially wrapped.
-
-_
-    args => {
-        n => {
-            pos => 0,
-        },
-    },
-    args_as => 'array',
-    result => {
-        schema=>'bool*',
-    },
-    result_naked => 1,
-};
-sub caller {
-    my $n0 = shift;
-    my $n  = $n0 // 0;
-
-    my @r;
-    my $i =  0;
-    my $j = -1;
-    while ($i <= $n+1) { # +1 for this sub itself
-        $j++;
-        @r = CORE::caller($j);
-        last unless @r;
-        if ($r[0] eq $default_wrapped_package && $r[1] =~ /^\(eval /) {
-            next;
-        }
-        $i++;
-    }
-
-    return unless @r;
-    return defined($n0) ? @r : $r[0];
-}
-
 1;
 # ABSTRACT: A multi-purpose subroutine wrapping framework
 
@@ -1503,12 +1462,11 @@ This poses a problem if you need to call caller() from within your wrapped code;
 it will also be off by at least one or two.
 
 The solution is for your function to use the caller() replacement, provided by
-this module.
+L<Perinci::Sub::Util>.
 
 =head2 But that is not transparent!
 
-True. The wrapped function needs to load and use this module's wrapper
-deliberately.
+True. The wrapped module needs to load and use that utility module explicitly.
 
 An alternative is for Perinci::Sub::Wrapper to use L<Sub::Uplevel>. Currently
 though, this module does not use Sub::Uplevel because, as explained in its
