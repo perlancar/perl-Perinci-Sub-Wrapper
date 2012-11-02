@@ -1445,7 +1445,7 @@ LOG_PERINCI_WRAPPER_CODE
 
 =head1 PERFORMANCE NOTES
 
-The following numbers are produced on an Asus Zenbook UX31 (Intel Core i5
+The following numbers are produced on an Asus Zenbook UX31 laptop (Intel Core i5
 1.7GHz) using Perinci::Sub::Wrapper v0.33 and Perl v5.14.2. Operating system is
 Ubuntu 11.10 (64bit).
 
