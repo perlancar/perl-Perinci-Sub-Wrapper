@@ -36,7 +36,7 @@ sub new {
 sub __squote {
     require Data::Dumper;
     my $res = Data::Dumper->new([shift])->
-        Purity(1)->Terse(1)->Deepcopy(1)->Dump;
+        Purity(1)->Terse(1)->Deepcopy(1)->Indent(0)->Dump;
     chomp $res;
     $res;
 }
@@ -525,7 +525,28 @@ sub handle_args {
     }
 
     $self->select_section('before_call_arg_validation');
-    $self->push_lines('', '# check arguments') if keys %$v;
+    $self->push_lines('', '# check arguments');
+
+    unless ($self->{_args}{allow_invalid_args}) {
+        $self->push_lines('for (keys %args) {');
+        $self->indent;
+        $self->push_lines('unless (/\A-?(\w+)\z/o) {');
+        $self->indent;
+        $self->push_lines(q{$res = [400, "Invalid argument name '$_'"]; }.
+                              'goto RETURN_RES;');
+        $self->push_lines('}');
+        $self->unindent;
+        unless ($self->{_args}{allow_unknown_args}) {
+            $self->push_lines('unless ($_ ~~ '.__squote([keys %$v]).') {');
+            $self->indent;
+            $self->push_lines(q{$res = [400, "Unknown argument '$_'"]; }.
+                                  'goto RETURN_RES;');
+            $self->push_lines('}');
+            $self->unindent;
+        }
+        $self->unindent;
+        $self->push_lines('}');
+    }
 
     my @modules;
     for my $an (sort keys %$v) {
@@ -535,6 +556,7 @@ sub handle_args {
                 delete $as->{$_} if $rm;
                 next;
             }
+            # XXX schema's schema
             # check known arg key
             die "Unknown arg spec key '$_' for arg '$an'" unless
                 /\A(
@@ -544,12 +566,6 @@ sub handle_args {
                      cmdline_aliases|
                      cmdline_src
                  )(\..+)?\z/x;
-            # XXX actually only summary/description can have .alt.lang.XXX
-
-            # XXX there should only one argument with src=stdin/stdin_or_files.
-
-            # XXX there should not be another argument with req=>1 + pos=>0,
-            # there must not be one if there is argument with src.
         }
 
         my $at = "\$args{'$an'}";
@@ -760,23 +776,28 @@ sub wrap {
 
     my ($self, %args) = @_;
 
+    warn "wrap() is currently designed to be only called once, ".
+        "to wrap again, please create a new ".__PACKAGE__." object"
+            if $self->{_done}++;
+
     my $sub      = $args{sub} or return [400, "Please specify sub"];
     $args{meta} or return [400, "Please specify meta"];
     my $meta     = Data::Clone::clone($args{meta});
-    $args{convert} //= {};
-    my $convert  = $args{convert};
-    $args{trap} //= 1;
-    my $trap     = $args{trap};
-    $args{compile} //= 1;
-    my $compile  = $args{compile};
-    $args{normalize_schemas} //= 1;
-    my $normalize_schemas = $args{normalize_schemas};
+
+    $args{convert}                    //= {};
+    $args{trap}                       //= 1;
+    $args{compile}                    //= 1;
+    $args{normalize_schemas}          //= 1;
     $args{remove_internal_properties} //= 1;
-    my $remove_internal_properties = $args{remove_internal_properties};
-    $args{validate_args} //= 1;
-    my $validate_args = $args{validate_args};
-    $args{validate_result} //= 1;
-    my $validate_result = $args{validate_result};
+    $args{validate_args}              //= 1;
+    $args{validate_result}            //= 1;
+    $args{allow_invalid_args}         //= 0;
+    $args{allow_unknown_args}         //= 0;
+    $args{skip}                       //= [];
+
+    # temp vars
+    my $convert  = $args{convert};
+    my $rip      = $args{remove_internal_properties};
 
     my $comppkg  = $self->{comppkg};
 
@@ -829,8 +850,6 @@ sub wrap {
 
     $meta->{args_as} //= "hash";
 
-    # XXX validate metadata first to filter invalid properties
-
     my %props = map {$_=>1} keys %$meta;
     $props{$_} = 1 for keys %$convert;
 
@@ -838,12 +857,16 @@ sub wrap {
     my %handler_metas;
     for my $k0 (keys %props) {
         if ($k0 =~ /^_/) {
-            delete $meta->{$k0} if $remove_internal_properties;
+            delete $meta->{$k0} if $rip;
             next;
         }
         my $k = $k0;
         $k =~ s/\..+//;
         next if $handler_args{$k};
+        if ($k ~~ $self->{_args}{skip}) {
+            $log->tracef("Skipped property %s (mentioned in skip)", $k);
+            next;
+        }
         return [500, "Invalid property name $k"] unless $k =~ /\A\w+\z/;
         my $meth = "handlemeta_$k";
         unless ($self->can($meth)) {
@@ -903,7 +926,7 @@ sub wrap {
                           '$res = [200, "OK", $res];');
     }
 
-    if ($trap || $self->_needs_eval) {
+    if ($args{trap} || $self->_needs_eval) {
         $self->select_section('CLOSE_EVAL');
         $self->unindent;
         $self->push_lines(
@@ -939,7 +962,7 @@ sub wrap {
                      SHARYANTO::String::Util::linenum($source));
     }
     my $result = {source=>$source};
-    if ($compile) {
+    if ($args{compile}) {
         my $wrapped = eval $source;
         die "BUG: Wrapper code can't be compiled: $@" if $@ || !$wrapped;
 
@@ -1012,6 +1035,11 @@ will be done automatically), args_as, result_naked, default_lang.
 
 _
         },
+        skip => {
+            schema => 'array*',
+            summary => 'Properties to skip '.
+                '(treat as if they do not exist in metadata)',
+        },
         trap => {
             schema => ['bool' => {default=>1}],
             summary => 'Whether to trap exception using an eval block',
@@ -1077,6 +1105,51 @@ cause wrapping code to die.
 
 Sometimes such properties are not desirable, e.g. in daemon environment. The use
 of such properties can be forbidden using this setting.
+
+_
+        },
+        validate_args => {
+            schema => [bool => default=>1],
+            summary => 'Whether wrapper should validate arguments',
+            description => <<'_',
+
+If set to true, will validate arguments. Validation error will cause status 400
+to be returned. This will only be done for arguments which has `schema` arg spec
+key. Will not be done if `args` property is skipped.
+
+_
+        },
+        allow_invalid_args => {
+            schema => [bool => default=>0],
+            summary => 'Whether to allow invalid arguments',
+            description => <<'_',
+
+By default, wrapper will require that all argument names are valid
+(`/\A-?\w+\z/`), except when this option is turned on.
+
+_
+        },
+        allow_unknown_args => {
+            schema => [bool => default=>0],
+            summary => 'Whether to allow unknown arguments',
+            description => <<'_',
+
+By default, this setting is set to false, which means that wrapper will require
+that all arguments are specified in `args` property, except for special
+arguments (those started with underscore), which will be allowed nevertheless.
+Will only be done if `allow_invalid_args` is set to false.
+
+_
+        },
+        validate_result => {
+            schema => [bool => default=>1],
+            summary => 'Whether wrapper should validate arguments',
+            description => <<'_',
+
+If set to true, will validate sub's result. Validation error will cause wrapper
+to return status 500 instead of sub's result. This will only be done if `schema`
+or `statuses` keys are set in the `result` property. Will not be done if
+`result` property is skipped.
 
 _
         },

@@ -57,7 +57,8 @@ sub test_wrap {
             }
 
             if (defined $test_args{call_status}) {
-                is(ref($call_res), 'ARRAY', 'call res is array');
+                is(ref($call_res), 'ARRAY', 'call res is array')
+                    or diag "call res = ", explain($call_res);
                 is($call_res->[0], $test_args{call_status},
                    "call status is $test_args{call_status}");
             }
@@ -91,7 +92,8 @@ sub test_wrap {
                     }
 
                     if (defined $call->{status}) {
-                        is(ref($res), 'ARRAY', 'res is array');
+                        is(ref($res), 'ARRAY', 'res is array')
+                            or diag "res = ", explain($res);
                         is($res->[0], $call->{status},
                            "status is $call->{status}");
                     }
