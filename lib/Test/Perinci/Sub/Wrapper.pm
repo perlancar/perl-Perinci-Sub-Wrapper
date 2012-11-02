@@ -69,6 +69,41 @@ sub test_wrap {
             }
         }
 
+        if ($test_args{calls}) {
+            my $sub = $wrap_res->[2]{sub};
+            my $i = 0;
+            for my $call (@{$test_args{calls}}) {
+                $i++;
+                subtest "call #$i: ".($call->{name} // "") => sub {
+                    my $res;
+                    eval { $res = $sub->(@{$call->{argsr}}) };
+                    my $eval_err = $@;
+                    if ($call->{dies}) {
+                        ok($eval_err, "dies");
+                        if ($call->{die_message}) {
+                            like($eval_err, $call->{die_message},
+                                 "die message");
+                        }
+                        return;
+                    } else {
+                        ok(!$eval_err, "doesn't die")
+                            or diag $eval_err;
+                    }
+
+                    if (defined $call->{status}) {
+                        is(ref($res), 'ARRAY', 'res is array');
+                        is($res->[0], $call->{status},
+                           "status is $call->{status}");
+                    }
+
+                    if (exists $call->{res}) {
+                        is_deeply($res, $call->{res}, "res")
+                            or diag explain $res;
+                    }
+                }; # subtest call #$i
+            }
+        } # if calls
+
         if ($test_args{posttest}) {
             $test_args{posttest}->($wrap_res, $call_res);
         }

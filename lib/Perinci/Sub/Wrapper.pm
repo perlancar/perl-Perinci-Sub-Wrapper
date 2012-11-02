@@ -53,9 +53,9 @@ sub _known_sections {
         # reserved by wrapper for generating 'eval {'
         OPEN_EVAL => {order=>20},
 
-        # for handlers to put various checks before calling the wrapped
-        # function, from data validation, argument conversion, etc. this is now
-        # deprecated.
+        # for handlers to put various checks before calling the wrapped sub,
+        # from data validation, argument conversion, etc. this is now
+        # deprecated. see various before_call_* instead.
         before_call => {order=>30},
 
         # used by args_as handler to initialize %args from input data (@_)
@@ -69,15 +69,21 @@ sub _known_sections {
         # used e.g. by dependency checking
         before_call_after_arg_validation => {order=>33},
 
-        # feed arguments to function
+        # feed arguments to sub
         before_call_feed_args => {order=>49},
 
-        # reserved by the wrapper for calling the function
+        # reserved by the wrapper for calling the sub
         CALL => {order=>50},
 
         # for handlers to put various things after calling, from validating
-        # result, enveloping result, etc.
+        # result, enveloping result, etc. this is now deprecated. see various
+        # after_call_* instead.
         after_call => {order=>60},
+
+        # used e.g. to load modules used by validation
+        after_call_before_res_validation => {order=>61},
+
+        after_call_res_validation => {order=>62},
 
         # reserved by wrapper to put eval end '}' and capturing $@ in $eval_err
         CLOSE_EVAL => {order=>70},
@@ -403,9 +409,9 @@ sub handle_args_as {
     # handler).
     #
     # Finally, unless original args_as is 'hash' we convert to the final form
-    # that the wrapped function expects.
+    # that the wrapped sub expects.
     #
-    # This setup is optimal when both the function and generated wrapper accept
+    # This setup is optimal when both the sub and generated wrapper accept
     # 'hash', but suboptimal for other cases (especially positional ones, as
     # they have to undergo a round-trip to hash even when both accept 'array').
     # This will be rectified in the future.
@@ -473,12 +479,21 @@ sub handle_args_as {
     $self->{_args_token} = $tok;
 }
 
-sub handlemeta_args { {v=>2, prio=>10, convert=>0} }
-sub handle_args {
+sub _sah {
     require Data::Sah;
 
+    my $self = shift;
     state $sah = Data::Sah->new;
-    state $plc = $sah->get_compiler("perl");
+    $sah;
+}
+
+sub _plc {
+    my $self = shift;
+    state $plc = $self->_sah->get_compiler("perl");
+}
+
+sub handlemeta_args { {v=>2, prio=>10, convert=>0} }
+sub handle_args {
 
     my ($self, %args) = @_;
 
@@ -487,6 +502,7 @@ sub handle_args {
 
     my $rm = $self->{_args}{remove_internal_properties};
     my $ns = $self->{_args}{normalize_schemas};
+    my $va = $self->{_args}{validate_args};
 
     # normalize schema
     if ($ns) {
@@ -494,14 +510,14 @@ sub handle_args {
             my $as = $v->{$an};
             if ($as->{schema}) {
                 $as->{schema} =
-                    Data::Sah::normalize_schema($as->{schema});
+                    $self->_sah->normalize_schema($as->{schema});
             }
             my $als = $as->{cmdline_aliases};
             if ($als) {
                 for my $al (keys %$als) {
                     if ($als->{$al}{schema}) {
                         $als->{$al}{schema} =
-                            Data::Sah::normalize_schema($als->{$al}{schema});
+                            $self->_sah->normalize_schema($als->{$al}{schema});
                     }
                 }
             }
@@ -511,7 +527,6 @@ sub handle_args {
     $self->select_section('before_call_arg_validation');
     $self->push_lines('', '# check arguments') if keys %$v;
 
-    # validation
     my @modules;
     for my $an (sort keys %$v) {
         my $as = $v->{$an};
@@ -540,14 +555,14 @@ sub handle_args {
         my $at = "\$args{'$an'}";
 
         my $sch = $as->{schema};
-        if ($sch) {
-            my $cd = $plc->compile(
-                data_name => $an,
-                data_term => $at,
-                schema    => $sch,
-                schema_is_normalized  => $ns,
-                validator_return_type => 'str',
-                indent_level => $self->get_indent_level + 4,
+        if ($sch && $va) {
+            my $cd = $self->_plc->compile(
+                data_name            => $an,
+                data_term            => $at,
+                schema               => $sch,
+                schema_is_normalized => $ns,
+                return_type          => 'str',
+                indent_level         => $self->get_indent_level + 4,
             );
             for (@{ $cd->{modules} }) {
                 push @modules, $_ unless $_ ~~ @modules;
@@ -583,9 +598,9 @@ sub handle_args {
         $self->push_lines('', '# load required modules for validation');
         $self->push_lines("require $_;") for @modules;
     }
+    push @{$self->{_modules}}, @modules;
 }
 
-# XXX not implemented yet
 sub handlemeta_result { {v=>2, prio=>50, convert=>0} }
 sub handle_result {
     require Data::Sah;
@@ -596,11 +611,23 @@ sub handle_result {
     return unless $v;
 
     my $ns = $self->{_args}{normalize_schemas};
+    my $vr = $self->{_args}{validate_result};
 
-    # normalize schema
+    my %ss; # key = status, value = schema
+
+    # normalize schemas
     if ($ns) {
         if ($v->{schema}) {
-            $v->{schema} = Data::Sah::normalize_schema($v->{schema});
+            $v->{schema} = $self->_sah->normalize_schema($v->{schema});
+        }
+        if ($v->{statuses}) {
+            for my $s (keys %{$v->{statuses}}) {
+                my $sv = $v->{statuses}{$s};
+                if ($sv->{schema}) {
+                    $sv->{schema} =
+                        $self->_sah->normalize_schema($sv->{schema});
+                }
+            }
         }
     }
 
@@ -611,7 +638,58 @@ sub handle_result {
         }
     }
 
-    # XXX result validation not implemented yet
+    # validate result
+    my @modules;
+    if ($v->{schema} && $vr) {
+        $ss{200} = $v->{schema};
+    }
+    if ($v->{statuses} && $vr) {
+        for my $s (keys %{$v->{statuses}}) {
+            my $sv = $v->{statuses}{$s};
+            if ($sv->{schema}) {
+                $ss{$s} = $sv->{schema};
+            }
+        }
+    }
+
+    if (keys %ss) {
+        $self->select_section('after_call_res_validation');
+        $self->push_lines("my \$res2 = \$res->[2];");
+        $self->push_lines("my \$err2_res;");
+
+        for my $s (keys %ss) {
+            my $sch = $ss{$s};
+            my $cd = $self->_plc->compile(
+                data_name            => 'res2',
+                # err_res can clash on arg named 'res'
+                err_term             => '$err2_res',
+                schema               => $sch,
+                schema_is_normalized => $ns,
+                return_type          => 'str',
+                indent_level         => $self->get_indent_level + 4,
+            );
+            for (@{ $cd->{modules} }) {
+                push @modules, $_ unless $_ ~~ @modules;
+            }
+            $self->push_lines("if (\$res->[0] == $s) {");
+            $self->indent;
+            $self->push_lines("\$err2_res = $cd->{result};");
+            $self->_errif(
+                500, qq["BUG: Sub produces invalid result (status=$s): ].
+                    qq[\$err2_res"],
+                "\$err2_res");
+            $self->unindent;
+            $self->push_lines("}");
+        }
+    }
+
+    @modules = grep {!($_ ~~ $self->{_modules})} @modules;
+    if (@modules) {
+        $self->select_section('after_call_before_res_validation');
+        $self->push_lines('', '# load required modules for validation');
+        $self->push_lines("require $_;") for @modules;
+    }
+    push @{$self->{_modules}}, @modules;
 }
 
 sub handlemeta_result_naked { {v=>2, prio=>100, convert=>1} }
@@ -695,6 +773,10 @@ sub wrap {
     my $normalize_schemas = $args{normalize_schemas};
     $args{remove_internal_properties} //= 1;
     my $remove_internal_properties = $args{remove_internal_properties};
+    $args{validate_args} //= 1;
+    my $validate_args = $args{validate_args};
+    $args{validate_result} //= 1;
+    my $validate_result = $args{validate_result};
 
     my $comppkg  = $self->{comppkg};
 
@@ -735,6 +817,8 @@ sub wrap {
     $self->{_codes} = {};
     $self->{_args} = \%args;
     $self->{_meta} = $meta; # the new metadata
+    $self->{_modules} = []; # modules loaded by wrapper sub
+
     $self->select_section('OPEN_SUB');
     $self->push_lines(
         "package $comppkg;",
