@@ -1,5 +1,24 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.33     2012-11-02 (SHARYANTO) (not yet released)
+
+         [ENHANCEMENTS]
+
+         - Follow Rinci 1.1.32.
+
+         - Wrapper code now validates result.
+
+         - Wrapper code now reject invalid args (like 'foo bar') unless
+           'allow_invalid_args' is turned on.
+
+         - Wrapper code now reject unknown args (those not specified in 'args'
+           metadata property), unless option 'allow_unknown_args' is turned on.
+
+         - Add options 'validate_args' to allow skipping validating arguments,
+           'validate_result' to allow skipping validating result, 'skip' to skip
+           certain properties, 'allow_unknown_args', 'allow_invalid_args'.
+
+
 0.33     2012-10-26 (SHARYANTO)
 
          [ENHANCEMENTS]
