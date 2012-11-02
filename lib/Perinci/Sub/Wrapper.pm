@@ -785,7 +785,7 @@ sub wrap {
     $args{meta} or return [400, "Please specify meta"];
     my $meta     = Data::Clone::clone($args{meta});
 
-    my $mp = "_perinci.sub.wrapper.opt";
+    my $mp = "_perinci.sub.wrapper";
     $args{convert}             //= $meta->{"$mp.convert"} // {};
     $args{trap}                //= $meta->{"$mp.trap"} // 1;
     $args{compile}             //= 1;
@@ -1372,7 +1372,7 @@ might also want to make sure that your subroutine is run wrapped.
      [map {rand} 1..$args{len}];
  }
 
-Most wrapping options can also be put in C<_perinci.sub.wrapper.opt.*>
+Most wrapping options can also be put in C<_perinci.sub.wrapper.*>
 attributes. For example:
 
  $SPEC{gen_random_array} = {
@@ -1382,7 +1382,7 @@ attributes. For example:
      },
      result_naked=>1,
      # skip validating arguments because sub already implements it
-     "_perinci.sub.wrapper.opt.validate_args" => 0,
+     "_perinci.sub.wrapper.validate_args" => 0,
  };
  sub gen_random_array {
      my %args = @_;
