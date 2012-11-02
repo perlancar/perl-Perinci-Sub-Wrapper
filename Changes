@@ -8,11 +8,12 @@ Revision history for Perinci-Sub-Wrapper
 
          - Wrapper code now validates result.
 
-         - Wrapper code now reject invalid args (like 'foo bar') unless new
+         - Wrapper code now rejects invalid args (like 'foo bar') unless new
            option 'allow_invalid_args' is turned on.
 
-         - Wrapper code now reject unknown args (those not specified in 'args'
-           metadata property), unless new option 'allow_unknown_args' is turned on.
+         - Wrapper code now rejects unknown args (those not specified in 'args'
+           metadata property), unless new option 'allow_unknown_args' is turned
+           on.
 
          - Add options 'validate_args' to allow skipping validating arguments,
            'validate_result' to allow skipping validating result, 'skip' to skip
