@@ -1,4 +1,4 @@
-spackage Perinci::Sub::Wrapper;
+package Perinci::Sub::Wrapper;
 
 use 5.010;
 use strict;
@@ -444,7 +444,6 @@ sub handle_args_as {
     } else {
         die "Unknown args_as value '$v'";
     }
-    $self->push_lines('$args{-wrapped} = 1;');
 
     my $tok;
     $self->select_section('before_call_feed_args');
@@ -531,19 +530,20 @@ sub handle_args {
     unless ($self->{_args}{allow_invalid_args}) {
         $self->push_lines('for (keys %args) {');
         $self->indent;
-        $self->push_lines('unless (/\A-?(\w+)\z/o) {');
+        $self->push_lines('unless (/\A(-?)\w+\z/o) {');
         $self->indent;
         $self->push_lines(q{$res = [400, "Invalid argument name '$_'"]; }.
                               'goto RETURN_RES;');
-        $self->push_lines('}');
         $self->unindent;
+        $self->push_lines('}');
         unless ($self->{_args}{allow_unknown_args}) {
-            $self->push_lines('unless ($_ ~~ '.__squote([keys %$v]).') {');
+            $self->push_lines(
+                'unless ($1 || $_ ~~ '.__squote([keys %$v]).') {');
             $self->indent;
             $self->push_lines(q{$res = [400, "Unknown argument '$_'"]; }.
                                   'goto RETURN_RES;');
-            $self->push_lines('}');
             $self->unindent;
+            $self->push_lines('}');
         }
         $self->unindent;
         $self->push_lines('}');
@@ -690,7 +690,7 @@ sub handle_result {
             }
             $self->push_lines("if (\$res->[0] == $s) {");
             $self->indent;
-            $self->push_lines("\$err2_res = $cd->{result};");
+            $self->push_lines("$cd->{result};");
             $self->_errif(
                 500, qq["BUG: Sub produces invalid result (status=$s): ].
                     qq[\$err2_res"],
@@ -852,6 +852,11 @@ sub wrap {
         'my ($res, $eval_err);');
 
     $meta->{args_as} //= "hash";
+
+    if ($meta->{args_as} =~ /hash/) {
+        $self->select_section('before_call_after_arg_validation');
+        $self->push_lines('$args{-wrapped} = 1;');
+    }
 
     my %props = map {$_=>1} keys %$meta;
     $props{$_} = 1 for keys %$convert;
@@ -1436,6 +1441,39 @@ The OO interface is only used internally or when you want to extend the wrapper.
 =head1 ENVIRONMENT
 
 LOG_PERINCI_WRAPPER_CODE
+
+
+=head1 PERFORMANCE NOTES
+
+The following numbers are produced on an Asus Zenbook UX31 (Intel Core i5
+1.7GHz) using Perinci::Sub::Wrapper v0.33 and Perl v5.14.2. Operating system is
+Ubuntu 11.10 (64bit).
+
+Empty subroutine (C<< sub {}>>) can be called around 4.3 mil/sec. So is this
+subroutine: C<< sub { [200, "OK"] } >>. With an empty metadata (C<< {v=>1.1}
+>>), the wrapped sub call performance is 0.40 mil/sec (a 10.8x slowdown). With
+wrapping option C<< trap=>0 >>, performance is 0.47 mil/sec (9.1x slowdown).
+
+With subroutine like this (C<< sub { my %args = @_; [200, "OK"] } >>, call
+performance for C<< $sub->(a=>1) >> is 0.97 mil/sec. With wrapping (and argument
+schema is a simple C<int>), performance is 0.13 mil/sec (5.1x slowdown).
+
+With two arguments, without wrapping: 0.89 mil/sec, with wrapping: 0.12 mil/sec
+(7.4x slowdown).
+
+From this we can see several points:
+
+Overhead is significant only if you plan to call your subroutine hundreds of
+thousands or millions of times per second.
+
+Wrapping overhead of Perinci::Sub::Wrapper is rather large at the beginning
+(compared to a simple wrapper), but will not increase dramatically as we add
+more arguments. Plus, wrapping various functionality will not introduce more
+wrap nesting levels.
+
+Overhead will increase as number of arguments increase or argument schema is
+more complex. You might want to test your function with and without wrapping to
+see the actual difference for your case.
 
 
 =head1 FAQ
