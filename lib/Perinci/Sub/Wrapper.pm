@@ -1,4 +1,4 @@
-package Perinci::Sub::Wrapper;
+spackage Perinci::Sub::Wrapper;
 
 use 5.010;
 use strict;
@@ -785,16 +785,18 @@ sub wrap {
     $args{meta} or return [400, "Please specify meta"];
     my $meta     = Data::Clone::clone($args{meta});
 
-    $args{convert}                    //= {};
-    $args{trap}                       //= 1;
-    $args{compile}                    //= 1;
-    $args{normalize_schemas}          //= 1;
-    $args{remove_internal_properties} //= 1;
-    $args{validate_args}              //= 1;
-    $args{validate_result}            //= 1;
-    $args{allow_invalid_args}         //= 0;
-    $args{allow_unknown_args}         //= 0;
-    $args{skip}                       //= [];
+    my $mp = "_perinci.sub.wrapper.opt";
+    $args{convert}             //= $meta->{"$mp.convert"} // {};
+    $args{trap}                //= $meta->{"$mp.trap"} // 1;
+    $args{compile}             //= 1;
+    $args{normalize_schemas}   //= $meta->{"$mp.normalize_schemas"} // 1;
+    $args{remove_internal_properties} //=
+        $meta->{"$mp.remove_internal_properties"} // 1;
+    $args{validate_args}       //= $meta->{"$mp.validate_args"} // 1;
+    $args{validate_result}     //= $meta->{"$mp.validate_result"} // 1;
+    $args{allow_invalid_args}  //= $meta->{"$mp.allow_invalid_args"} // 0;
+    $args{allow_unknown_args}  //= $meta->{"$mp.allow_unknown_args"} // 0;
+    $args{skip}                //= $meta->{"$mp.skip"} // [];
 
     # temp vars
     my $convert  = $args{convert};
@@ -1369,6 +1371,30 @@ might also want to make sure that your subroutine is run wrapped.
      die "This subroutine needs wrapping" unless $args{-wrapped}; # optional
      [map {rand} 1..$args{len}];
  }
+
+Most wrapping options can also be put in C<_perinci.sub.wrapper.opt.*>
+attributes. For example:
+
+ $SPEC{gen_random_array} = {
+     v => 1.1,
+     args => {
+         len => {req=>1, schema => ["int*" => between => [1, 1000]]},
+     },
+     result_naked=>1,
+     # skip validating arguments because sub already implements it
+     "_perinci.sub.wrapper.opt.validate_args" => 0,
+ };
+ sub gen_random_array {
+     my %args = @_;
+     my $len = $args{len} // 10;
+     die "Length too big" if $len > 1000;
+     die "Please specify at least length=1" if $len < 1;
+     [map {rand} 1..$len];
+ }
+
+See also L<Dist::Zilla::Plugin::Rinci::Validate> which can insert validation
+code into your Perl source code files so you can skip doing it again in
+validation.
 
 
 =head1 EXTENDING
