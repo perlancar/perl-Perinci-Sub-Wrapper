@@ -1426,31 +1426,28 @@ The following numbers are produced on an Asus Zenbook UX31 laptop (Intel Core i5
 1.7GHz) using Perinci::Sub::Wrapper v0.33 and Perl v5.14.2. Operating system is
 Ubuntu 11.10 (64bit).
 
-Empty subroutine (C<< sub {} >>) can be called around 4.3 mil/sec. So can this
-subroutine: C<< sub { [200, "OK"] } >>. With an empty metadata (C<< {v=>1.1}
->>), the wrapped sub call performance is 0.40 mil/sec (a 10.8x slowdown). With
-wrapping option C<< trap=>0 >>, performance is 0.47 mil/sec (9.1x slowdown).
+For perspective, empty subroutine (C<< sub {} >>) as well as C<< sub { [200,
+"OK"] } >> can be called around 4.3 mil/sec.
 
-With subroutine like this (C<< sub { my %args = @_; [200, "OK"] } >>), call
-performance for C<< $sub->(a=>1) >> is 0.97 mil/sec. With wrapping (and argument
-schema is a simple C<int>), performance is 0.13 mil/sec (5.1x slowdown).
+Wrapping this subroutine C<< sub { [200, "OK"] } >> and this simple metadata C<<
+{v=>1.1, args=>{a=>{schema=>"int"}}} >> using default options yields call
+performance for C<< $sub->() >> of about 0.28 mil/sec. For C<< $sub->(a=>1) >>
+it is about 0.12 mil/sec. So if your sub needs to be called a million times a
+second, the wrapping adds too big of an overhead.
 
-With two arguments, without wrapping: 0.89 mil/sec, with wrapping: 0.12 mil/sec
-(7.4x slowdown).
+By default, wrapper provides these functionality: checking invalid and unknown
+arguments, argument value validation, exception trapping (C<eval {}>), and
+result checking. If we turn off all these features except argument validation
+(by adding options C<< allow_invalid_args=>1, trap=>0, validate_result=>0 >>)
+call performance increases to around 0.47 mil/sec (for C<< $sub->() >> and 0.24
+mil/sec (for C<< $sub->(a=>1) >>).
 
-From this we can see several points:
-
-Overhead is significant only if you plan to call your subroutine hundreds of
-thousands or millions of times per second.
-
-Wrapping overhead of Perinci::Sub::Wrapper is rather large at the beginning
-(compared to a simple wrapper), but will not increase dramatically as we add
-more arguments. Plus, wrapping various functionality will not introduce more
-wrap nesting levels.
-
-Overhead will increase as number of arguments increase or argument schema is
-more complex. You might want to test your function with and without wrapping to
-see the actual difference for your case.
+As more arguments are introduced in the schema and passed, and as argument
+schemas become more complex, overhead will increase. For example, for 5 int
+arguments being declared and passed, call performance is around 0.11 mil/sec.
+Without passing any argument when calling, call performance is still around 0.43
+mil/sec, indicating that the significant portion of the overhead is in argument
+validation.
 
 
 =head1 FAQ
