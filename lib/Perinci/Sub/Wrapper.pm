@@ -43,8 +43,11 @@ sub __squote {
 
 sub _known_sections {
     state $val = {
+        # to require modules
+        before_sub => {order=>0},
+
         # reserved by wrapper for setting Perl package and declaring 'sub {'
-        OPEN_SUB => {order=>0},
+        OPEN_SUB => {order=>1},
 
         # for handlers to put stuffs right before eval. for example, 'timeout'
         # uses this to set ALRM signal handler.
@@ -606,7 +609,7 @@ sub handle_args {
     }
 
     if (@modules) {
-        $self->select_section('before_call_before_arg_validation');
+        $self->select_section('before_sub');
         $self->push_lines('', '# load required modules for validation');
         $self->push_lines("require $_;") for @modules;
     }
@@ -925,7 +928,7 @@ sub wrap {
         # temporarily.
         $self->push_lines('# add temporary envelope',
                           '$res = [200, "OK", $res];');
-    } else {
+    } elsif ($args{validate_result}) {
         $self->push_lines(
             '',
             '# check that sub produces enveloped result',
@@ -1423,7 +1426,7 @@ The following numbers are produced on an Asus Zenbook UX31 laptop (Intel Core i5
 1.7GHz) using Perinci::Sub::Wrapper v0.33 and Perl v5.14.2. Operating system is
 Ubuntu 11.10 (64bit).
 
-Empty subroutine (C<< sub {} >>) can be called around 4.3 mil/sec. So is this
+Empty subroutine (C<< sub {} >>) can be called around 4.3 mil/sec. So can this
 subroutine: C<< sub { [200, "OK"] } >>. With an empty metadata (C<< {v=>1.1}
 >>), the wrapped sub call performance is 0.40 mil/sec (a 10.8x slowdown). With
 wrapping option C<< trap=>0 >>, performance is 0.47 mil/sec (9.1x slowdown).
