@@ -1,5 +1,11 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.35     2012-11-03 (SHARYANTO)
+
+         No functional changes. Minor optimization for generated code, add FAQ
+         item.
+
+
 0.34     2012-11-03 (SHARYANTO)
 
          [ENHANCEMENTS]
