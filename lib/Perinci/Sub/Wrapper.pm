@@ -997,7 +997,7 @@ $SPEC{wrap_sub} = {
     description => <<'_',
 
 Will wrap subroutine and bless the generated wrapped subroutine (by default into
-'Perinci::Sub::Wrapped') as a way of marking that the subroutine is a wrapped
+`Perinci::Sub::Wrapped`) as a way of marking that the subroutine is a wrapped
 one.
 
 _
@@ -1030,7 +1030,8 @@ _
             description => <<'_',
 
 It is a good idea to supply this so that wrapper code can display this
-information when they need to (e.g. see Perinci::Sub::Property::dies_on_error).
+information when they need to (e.g. see
+`Perinci::Sub::Property::dies_on_error`).
 
 _
         },
@@ -1076,7 +1077,7 @@ source code.
 
 _
         },
-        normalize_schema => {
+        normalize_schemas => {
             schema => ['bool' => {default=>1}],
             summary => 'Whether to normalize schemas in metadata',
             description => <<'_',
