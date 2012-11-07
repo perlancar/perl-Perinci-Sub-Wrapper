@@ -593,7 +593,7 @@ sub handle_args {
                 $self->push_lines("my \$err_$an;\n$cd->{result};");
                 $self->_errif(
                     400, qq["Invalid value for argument '$an': \$err_$an"],
-                    "\$err_$an");
+                    "\$err_$dn");
                 $self->unindent;
                 if ($has_default) {
                     $self->push_lines(
