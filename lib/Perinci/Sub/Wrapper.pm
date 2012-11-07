@@ -578,8 +578,9 @@ sub handle_args {
             my $has_default = ref($sch) eq 'ARRAY' &&
                 exists($sch->[1]{default}) ? 1:0;
             if ($va) {
+                my $dn = $an; $dn =~ s/\W+/_/g;
                 my $cd = $self->_plc->compile(
-                    data_name            => $an,
+                    data_name            => $dn,
                     data_term            => $at,
                     schema               => $sch,
                     schema_is_normalized => $ns,
