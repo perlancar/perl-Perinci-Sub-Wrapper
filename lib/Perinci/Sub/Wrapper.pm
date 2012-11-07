@@ -590,9 +590,9 @@ sub handle_args {
                 $self->_add_module($_) for @{ $cd->{modules} };
                 $self->push_lines("if (exists($at)) {");
                 $self->indent;
-                $self->push_lines("my \$err_$an;\n$cd->{result};");
+                $self->push_lines("my \$err_$dn;\n$cd->{result};");
                 $self->_errif(
-                    400, qq["Invalid value for argument '$an': \$err_$an"],
+                    400, qq["Invalid value for argument '$an': \$err_$dn"],
                     "\$err_$dn");
                 $self->unindent;
                 if ($has_default) {
