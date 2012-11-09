@@ -1279,7 +1279,7 @@ sub wrap_all_subs {
 1;
 # ABSTRACT: A multi-purpose subroutine wrapping framework
 
-=for Pod::Coverage ^(new|handle(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|select_section|push_lines)$
+=for Pod::Coverage ^(new|handle(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|get_indent_level|select_section|push_lines)$
 
 =head1 SYNOPSIS
 

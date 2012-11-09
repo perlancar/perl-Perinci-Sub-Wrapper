@@ -127,3 +127,5 @@ sub test_wrap {
 
 1;
 # ABSTRACT: Provide test_wrap() to test wrapper
+
+=for Pod::Coverage test_wrap
