@@ -778,7 +778,8 @@ sub wrap {
     $args{normalize_schemas}   //= $meta->{"$mp.normalize_schemas"} // 1;
     $args{remove_internal_properties} //=
         $meta->{"$mp.remove_internal_properties"} // 1;
-    $args{validate_args}       //= $meta->{"$mp.validate_args"} // 1;
+    $args{validate_args}       //= $meta->{"$mp.validate_args"} //
+        $ENV{PERINCI_WRAPPER_VALIDATE_ARGS} // 1;
     $args{validate_result}     //= $meta->{"$mp.validate_result"} // 1;
     $args{allow_invalid_args}  //= $meta->{"$mp.allow_invalid_args"} // 0;
     $args{allow_unknown_args}  //= $meta->{"$mp.allow_unknown_args"} // 0;
@@ -1408,7 +1409,15 @@ The OO interface is only used internally or when you want to extend the wrapper.
 
 =head1 ENVIRONMENT
 
-LOG_PERINCI_WRAPPER_CODE
+=head2 LOG_PERINCI_WRAPPER_CODE (bool)
+
+If set to 1, will log the generated wrapper code. This value is used to set
+C<$Log_Wrapper_Code> if it is not already set.
+
+=head2 PERINCI_WRAPPER_VALIDATE_ARGS (bool, default 1)
+
+Can be set to 0 to skip adding validation code. This provides a default for
+C<validate_args> wrap_sub() argument.
 
 
 =head1 PERFORMANCE NOTES
