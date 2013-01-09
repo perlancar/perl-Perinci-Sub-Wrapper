@@ -51,12 +51,24 @@ sub _add_module {
     }
 }
 
+sub _add_var {
+    my ($self, $var) = @_;
+    unless (exists $self->{_vars}{$var}) {
+        local $self->{_cur_section};
+        $self->select_section('declare_vars');
+        $self->push_lines("my \$$var = ".__squote($self->{_vars}{$var}).";");
+        $self->{_vars} = $var;
+    }
+}
+
 sub _known_sections {
     state $val = {
         before_sub_require_modules => {order=>0},
 
         # reserved by wrapper for setting Perl package and declaring 'sub {'
         OPEN_SUB => {order=>1},
+
+        declare_vars => {order=>2},
 
         # for handlers to put stuffs right before eval. for example, 'timeout'
         # uses this to set ALRM signal handler.
@@ -588,6 +600,8 @@ sub handle_args {
                     indent_level         => $self->get_indent_level + 4,
                 );
                 $self->_add_module($_) for @{ $cd->{modules} };
+                $self->_add_var($_, $cd->{vars}{$_})
+                    for sort keys %{ $cd->{vars} };
                 $self->push_lines("if (exists($at)) {");
                 $self->indent;
                 $self->push_lines("my \$err_$dn;\n$cd->{result};");
