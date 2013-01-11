@@ -52,12 +52,12 @@ sub _add_module {
 }
 
 sub _add_var {
-    my ($self, $var) = @_;
+    my ($self, $var, $value) = @_;
     unless (exists $self->{_vars}{$var}) {
         local $self->{_cur_section};
         $self->select_section('declare_vars');
-        $self->push_lines("my \$$var = ".__squote($self->{_vars}{$var}).";");
-        $self->{_vars} = $var;
+        $self->push_lines("my \$$var = ".__squote($value).";");
+        $self->{_vars}{$var} = $value;
     }
 }
 
