@@ -992,7 +992,9 @@ sub wrap {
     if ($Log_Wrapper_Code && $log->is_trace) {
         require SHARYANTO::String::Util;
         $log->tracef("wrapper code:\n%s",
-                     SHARYANTO::String::Util::linenum($source));
+                     $ENV{LINENUM} // 1 ?
+                         SHARYANTO::String::Util::linenum($source) :
+                               $source);
     }
     my $result = {source=>$source};
     if ($args{compile}) {
