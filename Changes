@@ -1,5 +1,20 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.37     2013-01-11 (SHARYANTO)
+
+         [ENHANCEMENTS]
+
+         - Observe PERINCI_WRAPPER_VALIDATE_ARGS.
+
+         - Observe LINENUM.
+
+         [BUG FIXES]
+
+         - Declare variables needed by validator code.
+
+         - Use Data::Sah 0.10.
+
+
 0.36     2012-11-07 (SHARYANTO)
 
          No functional changes. Fix handling argument name that is not
