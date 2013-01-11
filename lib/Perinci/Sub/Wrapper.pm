@@ -698,6 +698,8 @@ sub handle_result {
                 indent_level         => $self->get_indent_level + 4,
             );
             $self->_add_module($_) for @{ $cd->{modules} };
+            $self->_add_var($_, $cd->{vars}{$_})
+                for sort keys %{ $cd->{vars} };
             $self->push_lines("if (\$res->[0] == $s) {");
             $self->indent;
             $self->push_lines("$cd->{result};");
