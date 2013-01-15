@@ -5,7 +5,7 @@ use strict;
 use warnings;
 
 package Perinci::Sub::property::testprop1;
-use Perinci::Util qw(declare_property);
+use Perinci::Sub::PropertyUtil qw(declare_property);
 
 declare_property(
     name    => 'testprop1',
