@@ -1,5 +1,10 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.38     2013-01-15 (SHARYANTO)
+
+         No functional changes. Update module name in test script [RT#82712].
+
+
 0.37     2013-01-11 (SHARYANTO)
 
          [ENHANCEMENTS]
