@@ -1,5 +1,11 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.39     2013-01-16 (SHARYANTO)
+
+         No functional changes. Move test to Perinci-Sub-PropertyUtil to avoid
+         circular dependency [RT#82712].
+
+
 0.38     2013-01-15 (SHARYANTO)
 
          No functional changes. Update module name in test script [RT#82712].
