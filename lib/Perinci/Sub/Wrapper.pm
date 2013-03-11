@@ -554,7 +554,8 @@ sub handle_args {
     unless ($self->{_args}{allow_invalid_args}) {
         $self->push_lines('for (keys %args) {');
         $self->indent;
-        $self->_errif(400, q["Invalid argument name '$_'"], '!/\A(-?)\w+\z/o');
+        $self->_errif(400, q["Invalid argument name '$_'"],
+                      '!/\A(-?)\w+(\.\w+)*\z/o');
         unless ($self->{_args}{allow_unknown_args}) {
             $self->_errif(
                 400, q["Unknown argument '$_'"],
