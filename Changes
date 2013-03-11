@@ -1,5 +1,11 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.40     2013-03-11 (SHARYANTO)
+
+         Allow function arguments in the form of 'abc.def' (e.g. produced by
+         Perinci::Sub::Gen::AccessTable).
+
+
 0.39     2013-01-16 (SHARYANTO)
 
          No functional changes. Move test to Perinci-Sub-PropertyUtil to avoid
