@@ -774,6 +774,9 @@ sub handle_deps {
     }
 }
 
+sub handlemeta_x { {v=>2, prio=>99} }
+sub handle_x {}
+
 sub wrap {
     require Data::Clone;
     require Scalar::Util;
