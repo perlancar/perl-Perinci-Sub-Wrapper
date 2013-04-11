@@ -1,5 +1,10 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.41     2013-04-11 (SHARYANTO)
+
+         Handle property 'x' (new in Rinci 1.1.35).
+
+
 0.40     2013-03-11 (SHARYANTO)
 
          Allow function arguments in the form of 'abc.def' (e.g. produced by
