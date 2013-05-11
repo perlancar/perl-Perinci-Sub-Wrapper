@@ -1476,7 +1476,7 @@ validation.
 
 =head2 How to display the wrapper code being generated?
 
-If environment variable LOG_PERINCI_WRAPPER_CODE or package variable
+If environment variable L<LOG_PERINCI_WRAPPER_CODE> or package variable
 $Log_Perinci_Wrapper_Code is set to true, generated wrapper source code is
 logged at trace level using L<Log::Any>. It can be displayed, for example, using
 L<Log::Any::App>:
@@ -1484,6 +1484,11 @@ L<Log::Any::App>:
  % LOG_PERINCI_WRAPPER_CODE=1 TRACE=1 \
    perl -MLog::Any::App -MPerinci::Sub::Wrapper=wrap_sub \
    -e 'wrap_sub(sub=>sub{}, meta=>{v=>1.1, args=>{a=>{schema=>"int"}}});'
+
+Note that L<Data::Sah> (the module used to generate validator code) observes
+C<LOG_SAH_VALIDATOR_CODE>, but during wrapping this environment flag is
+currently disabled by this module, so you need to set
+L<LOG_PERINCI_WRAPPER_CODE> instead.
 
 =head2 How do I tell if I am being wrapped?
 
