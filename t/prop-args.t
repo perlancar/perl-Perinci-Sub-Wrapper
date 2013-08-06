@@ -20,6 +20,12 @@ test_wrap(
     wrap_dies => 1,
 );
 
+$meta = {v=>1.1, args=>{a=>{x=>1, "x.y"=>2}}};
+test_wrap(
+    name      => 'arg spec key x',
+    wrap_args => {sub => $sub, meta => $meta},
+);
+
 $meta = {v=>1.1, args=>{a=>{_foo=>1}}};
 test_wrap(
     name        => 'arg spec key prefixed by _ is ignored',

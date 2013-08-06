@@ -580,7 +580,8 @@ sub handle_args {
                      schema|req|pos|greedy|
                      completion|
                      cmdline_aliases|
-                     cmdline_src
+                     cmdline_src|
+                     x
                  )(\..+)?\z/x;
         }
 
