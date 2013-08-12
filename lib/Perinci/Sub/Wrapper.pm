@@ -1277,7 +1277,7 @@ sub wrap_all_subs {
         my $osub  = \&{"$package\::$f"};
         my $ometa = $metas->{$f};
         $recap->{$f} = {orig_sub => $osub, orig_meta => $ometa};
-        $res = wrap_sub(%$wrap_args, sub => $osub, meta => $ometa);
+        my $res = wrap_sub(%$wrap_args, sub => $osub, meta => $ometa);
         return wrapres([500, "Can't wrap $package\::$f: "], $res)
             unless $res->[0] == 200;
         $recap->{$f}{new_sub}  = $res->[2]{sub};
@@ -1289,7 +1289,7 @@ sub wrap_all_subs {
     # replace the originals
     for my $f (keys %$recap) {
         *{"$package\::$f"} = $recap->{$f}{new_sub};
-        $ma->set_meta($package, $f, $recap->{$f}{new_meta});
+        ${"$package\::SPEC"}{$f} = $recap->{$f}{new_meta};
     }
 
     [200, "OK", $recap];
