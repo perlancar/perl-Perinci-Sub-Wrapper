@@ -1,5 +1,11 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.44     2013-08-12 (SHARYANTO)
+
+         - No functional changes. Remove dependency to Perinci::Util (in 0.35,
+           get_package_meta_accessor is removed).
+
+
 0.43     2013-08-07 (SHARYANTO)
 
          - No functional changes. Add 'use experimental smartmatch' for 5.18+.
