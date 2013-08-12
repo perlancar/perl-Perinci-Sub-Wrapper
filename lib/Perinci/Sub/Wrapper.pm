@@ -7,7 +7,6 @@ use experimental 'smartmatch';
 use Log::Any '$log';
 
 use Perinci::Sub::Util qw(wrapres);
-use Perinci::Util      qw(get_package_meta_accessor);
 use Scalar::Util       qw(blessed);
 
 use Exporter qw(import);
@@ -1268,16 +1267,11 @@ sub wrap_all_subs {
     my $package   = $args{package}   // $caller[0];
     my $wrap_args = $args{wrap_args} // {};
 
-    my $res = get_package_meta_accessor(package=>$package);
-    return wrapres([500, "Can't get meta accessor: "], $res)
-        unless $res->[0] == 200;
-    my $ma = $res->[2];
-
     my $recap = {};
 
     no strict 'refs';
 
-    my $metas = $ma->get_all_metas($package);
+    my $metas = \%{"$package\::SPEC"} // {};
     for my $f (keys %$metas) {
         next unless $f =~ /\A\w+\z/;
         my $osub  = \&{"$package\::$f"};
