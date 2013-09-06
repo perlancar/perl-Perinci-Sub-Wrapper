@@ -1522,6 +1522,26 @@ though, this module does not use Sub::Uplevel because, as explained in its
 manpage, it is rather slow. If you don't use caller(), your subroutine actually
 doesn't need to care if it is wrapped nor it needs "uplevel-ing".
 
+=head2 How to ensure that users use the wrapped functions?
+
+Sometimes you do rely on the functionalities provided by wrapping, most notably
+argument validation, and you want to make sure that arguments are always
+validated when users execute your function.
+
+If your module use L<Perinci::Exporter>, users use()-ing your module will by
+default import the wrapped version of your functions. But they can turn this off
+via passing C<< wrap => 0 >>.
+
+Another alternative is to embed the generated argument validation code directly
+into your built source code. If you use L<Dist::Zilla>, take a look
+L<Dist::Zilla::Plugin::Rinci::Validate>. This only covers the argument
+validation functionality and not others, but this does not add levels of calls
+or modifies the line numbers of your source code, so this solution is very
+transparent.
+
+I might write another dzil plugin which embeds the whole wrapper code into the
+source code, should there be such a demand.
+
 
 =head1 SEE ALSO
 
