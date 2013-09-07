@@ -778,6 +778,9 @@ sub handle_deps {
 sub handlemeta_x { {v=>2, prio=>99} }
 sub handle_x {}
 
+sub handlemeta_entity_v { {v=>2, prio=>99} }
+sub handle_entity_v {}
+
 sub wrap {
     require Data::Clone;
     require Scalar::Util;

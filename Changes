@@ -1,5 +1,10 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.45     2013-09-07 (SHARYANTO) (not yet released)
+
+         - Handle (ignore) property 'entity_v' (Rinci 1.1.36).
+
+
 0.44     2013-08-12 (SHARYANTO)
 
          - No functional changes. Remove dependency to Perinci::Util (in 0.35,
