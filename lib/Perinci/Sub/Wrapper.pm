@@ -791,7 +791,9 @@ sub wrap {
         "to wrap again, please create a new ".__PACKAGE__." object"
             if $self->{_done}++;
 
-    my $sub      = $args{sub} or return [400, "Please specify sub"];
+    my $sub      = $args{sub};
+    my $sub_name = $args{sub_name};
+    $sub || $sub_name or return [400, "Please specify sub or sub_name"];
     $args{meta} or return [400, "Please specify meta"];
     my $meta     = Data::Clone::clone($args{meta});
 
@@ -831,10 +833,14 @@ sub wrap {
                 "supported"]
         unless $meta->{v} == 1.1 || $meta->{v} == 1.0;
 
-    # put the sub in a named variable, so it can be accessed by the wrapper
-    # code.
-    my $subname = $comppkg . "::sub".Scalar::Util::refaddr($sub);
-    { no strict 'refs'; ${$subname} = $sub; }
+    # if a coderef is supplied ($sub), put it in a named variable in $comppkg
+    # package, so it can be accessed by the wrapper code.
+    if (!$sub_name) {
+        $sub_name = $comppkg . "::sub".Scalar::Util::refaddr($sub);
+        no strict 'refs';
+        ${$sub_name} = $sub;
+        $sub_name = "\$$sub_name"; # make it a scalar
+    }
 
     # also store the meta, it is needed by the wrapped sub. sometimes the meta
     # contains coderef and can't be dumped reliably, so we store it instead.
@@ -937,7 +943,8 @@ sub wrap {
     }
 
     $self->select_section('CALL');
-    $self->push_lines('$res = $'.$subname."->(".$self->{_args_token}.");");
+    $self->push_lines('$res = ' . $sub_name . ($sub_name =~ /^\$/ ? "->" : "").
+                          "(".$self->{_args_token}.");");
     if ($self->{_args}{meta}{result_naked}) {
         # internally we always use result envelope, so let's envelope this
         # temporarily.
@@ -1050,23 +1057,32 @@ _
         sub => {
             schema => 'code*',
             summary => 'The code to wrap',
-            req => 1, pos => 0,
+            description => <<'_',
+
+Either `sub` or `sub_name` must be supplied.
+
+If generated wrapper code is to be saved to disk or used by another process,
+then `sub_name` is required.
+
+_
         },
         sub_name => {
             schema => 'str*',
-            summary => 'The name of the code, e.g. Foo::func',
+            summary => 'The fully qualified name of the subroutine, '.
+                'e.g. Foo::func',
             description => <<'_',
 
-It is a good idea to supply this so that wrapper code can display this
-information when they need to (e.g. see
-`Perinci::Sub::Property::dies_on_error`).
+Either `sub` or `sub_name` must be supplied.
+
+If generated wrapper code is to be saved to disk or used by another process,
+then `sub_name` is required.
 
 _
         },
         meta => {
             schema => 'hash*',
             summary => 'The function metadata',
-            req =>1, pos => 1,
+            req => 1,
         },
         convert => {
             schema => 'hash*',
