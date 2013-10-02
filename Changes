@@ -1,5 +1,10 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.46     2013-10-02 (SHARYANTO)
+
+         - Can accept sub_name only instead of sub.
+
+
 0.45     2013-09-07 (SHARYANTO)
 
          - Handle (ignore) property 'entity_v' (Rinci 1.1.36).
