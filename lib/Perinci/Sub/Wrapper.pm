@@ -838,9 +838,11 @@ sub wrap {
     if (!$sub_name) {
         $sub_name = $comppkg . "::sub".Scalar::Util::refaddr($sub);
         no strict 'refs';
+        no warnings;
         ${$sub_name} = $sub;
         $sub_name = "\$$sub_name"; # make it a scalar
     }
+    use experimental 'smartmatch';
 
     # also store the meta, it is needed by the wrapped sub. sometimes the meta
     # contains coderef and can't be dumped reliably, so we store it instead.
