@@ -6,7 +6,7 @@ use warnings;
 use experimental 'smartmatch';
 use Log::Any '$log';
 
-use Perinci::Sub::Util qw(wrapres);
+use Perinci::Sub::Util qw(err);
 use Scalar::Util       qw(blessed);
 
 use Exporter qw(import);
@@ -1299,7 +1299,7 @@ sub wrap_all_subs {
         my $ometa = $metas->{$f};
         $recap->{$f} = {orig_sub => $osub, orig_meta => $ometa};
         my $res = wrap_sub(%$wrap_args, sub => $osub, meta => $ometa);
-        return wrapres([500, "Can't wrap $package\::$f: "], $res)
+        return err(500, "Can't wrap $package\::$f", $res)
             unless $res->[0] == 200;
         $recap->{$f}{new_sub}  = $res->[2]{sub};
         $recap->{$f}{new_meta} = $res->[2]{meta};
