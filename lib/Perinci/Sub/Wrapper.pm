@@ -118,7 +118,7 @@ sub _known_sections {
         # for handlers that want to do something with $res for the last time
         before_return_res => {order=>85},
 
-        # reserved for returning '$res' and the sub closing '}' line
+        # reserved for returning '$_w_res' and the sub closing '}' line
         CLOSE_SUB => {order=>90},
     };
     $val;
@@ -145,7 +145,7 @@ sub _err {
     my ($self, $c_status, $c_msg) = @_;
     $self->push_lines(
         # we set $res here when we return from inside the eval block
-        '$res = ' . "[$c_status, $c_msg]" . ';',
+        '$_w_res = ' . "[$c_status, $c_msg]" . ';',
         'goto RETURN_RES;');
 }
 
@@ -685,15 +685,15 @@ sub handle_result {
 
     if (keys %ss) {
         $self->select_section('after_call_res_validation');
-        $self->push_lines("my \$res2 = \$res->[2];");
-        $self->push_lines("my \$err2_res;");
+        $self->push_lines("my \$_w_res2 = \$_w_res->[2];");
+        $self->push_lines("my \$_w_err2_res;");
 
         for my $s (keys %ss) {
             my $sch = $ss{$s};
             my $cd = $self->_plc->compile(
-                data_name            => 'res2',
+                data_name            => '_w_res2',
                 # err_res can clash on arg named 'res'
-                err_term             => '$err2_res',
+                err_term             => '$_w_err2_res',
                 schema               => $sch,
                 schema_is_normalized => $ns,
                 return_type          => 'str',
@@ -702,13 +702,13 @@ sub handle_result {
             $self->_add_module($_) for @{ $cd->{modules} };
             $self->_add_var($_, $cd->{vars}{$_})
                 for sort keys %{ $cd->{vars} };
-            $self->push_lines("if (\$res->[0] == $s) {");
+            $self->push_lines("if (\$_w_res->[0] == $s) {");
             $self->indent;
             $self->push_lines("$cd->{result};");
             $self->_errif(
                 500, qq["BUG: Sub produces invalid result (status=$s): ].
-                    qq[\$err2_res"],
-                "\$err2_res");
+                    qq[\$_w_err2_res"],
+                "\$_w_err2_res");
             $self->unindent;
             $self->push_lines("}");
         }
@@ -726,12 +726,12 @@ sub handle_result_naked {
     if ($v) {
         $self->push_lines(
             '', '# strip result envelope',
-            '$res = $res->[2];',
+            '$_w_res = $_w_res->[2];',
         );
     } elsif ($old && !$v) {
         $self->push_lines(
             '', '# add result envelope',
-            '$res = [200, "OK", $res->[2]];',
+            '$_w_res = [200, "OK", $_w_res->[2]];',
         );
     }
 }
@@ -745,23 +745,23 @@ sub handle_deps {
     $self->select_section('before_call_after_arg_validation');
     $self->push_lines('', '# check dependencies');
     $self->push_lines('require Perinci::Sub::DepChecker;');
-    $self->push_lines('my $deps_res = Perinci::Sub::DepChecker::check_deps($'.
+    $self->push_lines('my $_w_deps_res = Perinci::Sub::DepChecker::check_deps($'.
                           $v.'->{deps});');
     if ($self->{_args}{trap}) {
-        $self->_errif(412, '"Deps failed: $deps_res"', '$deps_res');
+        $self->_errif(412, '"Deps failed: $_w_deps_res"', '$_w_deps_res');
     } else {
-        $self->push_lines('die "Deps failed: $deps_res" if $deps_res;');
+        $self->push_lines('die "Deps failed: $_w_deps_res" if $_w_deps_res;');
     }
 
     # we handle some deps our own
     if ($value->{tmp_dir}) {
         $self->push_lines(
-            'unless ($args{-tmp_dir}) { $res = [412, "Dep failed: '.
+            'unless ($args{-tmp_dir}) { $_w_res = [412, "Dep failed: '.
                 'please specify -tmp_dir"]; goto RETURN_RES }');
     }
     if ($value->{trash_dir}) {
         $self->push_lines(
-            'unless ($args{-trash_dir}) { $res = [412, "Dep failed: '.
+            'unless ($args{-trash_dir}) { $_w_res = [412, "Dep failed: '.
                 'please specify -trash_dir"]; goto RETURN_RES }');
     }
     if ($value->{undo_trash_dir}) {
@@ -769,7 +769,7 @@ sub handle_deps {
             '',
             'unless ($args{-undo_trash_dir} || $args{-tx_manager} || ',
             '$args{-undo_action} && $args{-undo_action}=~/\A(?:undo|redo)\z/) ',
-            '{ $res = [412, "Dep failed: ',
+            '{ $_w_res = [412, "Dep failed: ',
             'please specify -undo_trash_dir"]; goto RETURN_RES }'
         ));
     }
@@ -868,7 +868,7 @@ sub wrap {
         'sub {');
     $self->indent;
     $self->push_lines(
-        'my ($res, $eval_err);');
+        'my ($_w_res, $_w_eval_err);');
 
     $meta->{args_as} //= "hash";
 
@@ -945,18 +945,18 @@ sub wrap {
     }
 
     $self->select_section('CALL');
-    $self->push_lines('$res = ' . $sub_name . ($sub_name =~ /^\$/ ? "->" : "").
+    $self->push_lines('$_w_res = ' . $sub_name . ($sub_name =~ /^\$/ ? "->" : "").
                           "(".$self->{_args_token}.");");
     if ($self->{_args}{meta}{result_naked}) {
         # internally we always use result envelope, so let's envelope this
         # temporarily.
         $self->push_lines('# add temporary envelope',
-                          '$res = [200, "OK", $res];');
+                          '$_w_res = [200, "OK", $_w_res];');
     } elsif ($args{validate_result}) {
         $self->push_lines(
             '',
             '# check that sub produces enveloped result',
-            'unless (ref($res) eq "ARRAY" && $res->[0]) {',
+            'unless (ref($_w_res) eq "ARRAY" && $_w_res->[0]) {',
         );
         $self->indent;
         if ($log->is_trace) {
@@ -965,11 +965,11 @@ sub wrap {
                 'local $Data::Dumper::Purity   = 1;',
                 'local $Data::Dumper::Terse    = 1;',
                 'local $Data::Dumper::Indent   = 0;',
-                '$res = [500, "BUG: Sub does not produce envelope: ".'.
-                    'Data::Dumper::Dumper($res)];');
+                '$_w_res = [500, "BUG: Sub does not produce envelope: ".'.
+                    'Data::Dumper::Dumper($_w_res)];');
         } else {
             $self->push_lines(
-                '$res = [500, "BUG: Sub does not produce envelope"];');
+                '$_w_res = [500, "BUG: Sub does not produce envelope"];');
         }
         $self->push_lines('goto RETURN_RES;');
         $self->unindent;
@@ -982,16 +982,16 @@ sub wrap {
         $self->push_lines(
             '',
             '};',
-            '$eval_err = $@;');
+            '$_w_eval_err = $@;');
         # _needs_eval will automatically be enabled here, due after_eval being
         # filled
         $self->select_section('after_eval');
-        $self->_errif(500, '"Function died: $eval_err"', '$eval_err');
+        $self->_errif(500, '"Function died: $_w_eval_err"', '$_w_eval_err');
     }
 
     # return result
     $self->select_section('CLOSE_SUB');
-    $self->push_lines('return $res;');
+    $self->push_lines('return $_w_res;');
     $self->unindent;
     $self->push_lines('}');
 
