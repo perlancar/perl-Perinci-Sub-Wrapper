@@ -1323,91 +1323,137 @@ sub wrap_all_subs {
 
 =head1 SYNOPSIS
 
+For dynamic usage:
+
  use Perinci::Sub::Wrapper qw(wrap_sub);
  my $res = wrap_sub(sub => sub {die "test\n"}, meta=>{...});
  my ($wrapped_sub, $meta) = ($res->[2]{sub}, $res->[2]{meta});
  $wrapped_sub->(); # call the wrapped function
 
+For embedded usage, see L<Dist::Zilla::Plugin::Perinci::Sub::Wrapper>.
+
 
 =head1 DESCRIPTION
 
-Perinci::Sub::Wrapper is an extensible subroutine wrapping framework. It works
-by creating a single "large" wrapper function from a composite bits of code,
-instead of using multiple small wrappers (a la Python's decorator). The
-single-wrapper approach has the benefit of smaller function call overhead. You
-can still wrap multiple times if needed.
+Perinci::Sub::Wrapper (PSW for short) is an extensible subroutine wrapping
+framework. It generates code to do stuffs before calling your subroutine (e.g.
+validate arguments, convert arguments from positional/array to named/hash or
+vice versa, etc) as well as after (e.g. retry calling for a number of times if
+subroutine returns a non-success status, check subroutine result against a
+schema, etc). Some other things it can do: apply a timeout, currying, and so on.
+The framework is extensible.
 
-This module is used to enforce Rinci properties, e.g. C<args> (by performing
-schema validation before calling the function), C<timeout> (by doing function
-call inside an C<eval()> and using C<alarm()> to limit the execution), or
-C<retry> (by wrapping function call inside a simple retry loop).
+PSW differs from other function composition or decoration system like Python
+decorators (or its Perl equivalent L<Python::Decorator>) in a number of ways:
 
-It can also be used to convert argument passing style, e.g. from C<args_as>
-C<array> to C<args_as> C<hash>, so you can call function using named arguments
-even though the function accepts positional arguments, or vice versa.
+=over
 
-There are many other possible uses.
+=item * Code generation
 
-This module uses L<Log::Any> for logging.
+PSW generates Perl wrapper code according to some specification (L<Rinci>
+metadata) which will be compiled before use. This is more cumbersome for wrapper
+authors, but can give some nice features, like the ability to embed the wrapping
+code directly into the source code of wrapped subroutine so it does not
+introduce an extra function call (see
+L<Dist::Zilla::Plugin::Perinci::Sub::Wrapper>).
+
+=item * Single wrapper
+
+Instead of multiple/nested wrapping for implementing different features, PSW
+will generate a single large wrapper around your code, i.e.:
+
+ sub _wrapper {
+     ...
+     # do various stuffs before calling
+     ...
+     your_sub(@args);
+     ...
+     # do various stuffs after calling
+     ...
+ }
+
+This approach is also somewhat less flexible and cumbersome for wrapper authors,
+but can also have smaller function call overhead especially.
+
+=item * Rinci
+
+As mentioned above, the wrapper code is built according to L<Rinci>
+specification. Rinci allows you to specify various things for your function,
+e.g. list of arguments including the expected data type of each argument and
+whether an argument is required or optional. PSW can then be used to generate
+the necessary code to enforce this specification, e.g. generate validator for
+the function arguments.
+
+Since Rinci specification is extensible, you can describe additional stuffs for
+your function and write a PSW plugin to generate the necessary code to implement
+your specification. An example is C<timeout> to specify execution time limit,
+implemented by L<Perinci::Sub::Property::timeout> which generates code to call
+function inside an C<eval()> block and use C<alarm()> to limit the execution.
+Another example is C<retry> property, implemented by
+L<Perinci::Sub::Property::retry> which generates code to call function inside a
+simple retry loop.
 
 
 =head1 USAGE
 
-Suppose you have a subroutine like this:
-
- sub gen_random_array {
-     my %args = @_;
-     my $len = $args{len} // 10;
-     die "Length too big" if $len > 1000;
-     die "Please specify at least length=1" if $len < 1;
-     [map {rand} 1..$len];
- }
-
-Wrapping can, among others, validate arguments and give default values. First
-you add a L<Rinci> metadata to your subroutine:
+PSW can be used either "dynamically", where you supply your subroutine (either
+the coderef or its name) and its Rinci metadata to C<wrap_sub>. C<wrap_sub> will
+return the wrapped function and normalized Rinci metadata. Suppose you have a
+subroutine like this (along with its Rinci metadata):
 
  our %SPEC;
  $SPEC{gen_random_array} = {
      v => 1.1,
      summary=> 'Generate an array of specified length containing random values',
      args => {
-         len => {req=>1, schema => ["int*" => between => [1, 1000]]},
+         len => {req=>1, schema=>["int*" => between => [1, 1000], default=>10]},
      },
      result_naked=>1,
  };
-
-You can then remove code that validates arguments and gives default values. You
-might also want to make sure that your subroutine is run wrapped.
-
  sub gen_random_array {
      my %args = @_;
-     die "This subroutine needs wrapping" unless $args{-wrapped}; # optional
-     [map {rand} 1..$args{len}];
- }
-
-Most wrapping options can also be put in C<_perinci.sub.wrapper.*>
-attributes. For example:
-
- $SPEC{gen_random_array} = {
-     v => 1.1,
-     args => {
-         len => {req=>1, schema => ["int*" => between => [1, 1000]]},
-     },
-     result_naked=>1,
-     # skip validating arguments because sub already implements it
-     "_perinci.sub.wrapper.validate_args" => 0,
- };
- sub gen_random_array {
-     my %args = @_;
-     my $len = $args{len} // 10;
-     die "Length too big" if $len > 1000;
-     die "Please specify at least length=1" if $len < 1;
+     my $len = $args{len};
      [map {rand} 1..$len];
  }
 
-See also L<Dist::Zilla::Plugin::Rinci::Validate> which can insert validation
-code into your Perl source code files so you can skip doing it again in
-validation.
+To wrap it:
+
+ my $orig_gen_random_array = \&gen_random_array;
+ my $res = wrap_sub(
+     sub => $orig_gen_random_array, meta=>$SPEC{gen_random_array});
+ die "Can't wrap: $res->[0] - $res->[1]" unless $res->[0] == 200;
+ *gen_random_array = $res->[2]{sub};
+ $SPEC{gen_random_array} = $res->[2]{meta};
+
+Or you can call your function via L<Perinci::Access> which will wrap the
+function for you.
+
+Another usage is to embed the wrapper code directly into your code during the
+build process. If you use L<Dist::Zilla>, you can use the
+L<Dist::Zilla::Plugin::Perinci::Sub::Wrapper> plugin and write:
+
+ our %SPEC;
+ $SPEC{gen_random_array} = { # BEGIN WRAP META
+     v => 1.1,
+     summary=> 'Generate an array of specified length containing random values',
+     args => {
+         len => {req=>1, schema=>["int*" => between => [1, 1000], default=>10]},
+     },
+     result_naked=>1,
+ }; # END WRAP META
+ sub gen_random_array { # BEGIN WRAP SUB
+     my %args = @_;
+     my $len = $args{len};
+     [map {rand} 1..$len];
+ } # END WRAP SUB
+
+The dzil plugin will replace the metadata with the normalized version and insert
+the wrapper code between the C<# BEGIN WRAP SUB> and C<# END WRAP SUB> part.
+This has a nice property that the wrapper does not introduce an additional call
+level, but has caveat e.g. possibility of variable clash (variables introduced
+by the wrapper code can eclipse variables that is defined outside the
+subroutine). Note that to minimize conflict, all variables used in code
+generated by PSW use the C<_w_> prefix, except C<$args>, C<@args>, or C<%args>.
 
 
 =head1 EXTENDING
@@ -1491,7 +1537,45 @@ validation.
 
 =head1 FAQ
 
-=head2 How to display the wrapper code being generated?
+=head2 General
+
+=over
+
+=item * What is a function wrapper?
+
+A wrapper function calls the target function but with additional behaviors. The
+goal is similar to function composition or decorator system like in Python (or
+its Perl equivalent L<Python::Decorator>) where you use a higher-order function
+which accepts another function and modifies it.
+
+=item * How is PSW different from Python::Decorator?
+
+PSW uses dynamic code generation (it generates Perl code on the fly). It also
+creates a single large wrapper instead of nested wrappers. It builds wrapper
+code according to L<Rinci> specification.
+
+=item * Why use code generation?
+
+Mainly because L<Data::Sah>, which is the module used to do argument validation,
+also uses code generation. Data::Sah allows us to do data validation at full
+Perl speed, which can be one or two orders of magnitude faster than
+"interpreter" modules like L<Data::FormValidator>.
+
+=item * Why use a single large wrapper?
+
+This is just a design approach. It can impose some restriction for wrapper code
+authors, since everything needs to be put in a single subroutine, but has nice
+properties like less stack trace depth and less function call overhead.
+
+=back
+
+=head2
+
+=head2 Debugging
+
+=over
+
+=item * How to display the wrapper code being generated?
 
 If environment variable L<LOG_PERINCI_WRAPPER_CODE> or package variable
 $Log_Perinci_Wrapper_Code is set to true, generated wrapper source code is
@@ -1566,6 +1650,12 @@ source code, should there be such a demand.
 
 =head1 SEE ALSO
 
-L<Perinci>
+L<Perinci>, L<Rinci>
+
+L<Python::Decorator>
+
+L<Dist::Zilla::Plugin::Perinci::Sub::Wrapper>
+
+L<Dist::Zilla::Plugin::Rinci::Validate>
 
 =cut
