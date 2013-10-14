@@ -1548,6 +1548,12 @@ goal is similar to function composition or decorator system like in Python (or
 its Perl equivalent L<Python::Decorator>) where you use a higher-order function
 which accepts another function and modifies it.
 
+It is used to add various functionalities, e.g.: cache/memoization, singleton,
+adding benchmarking/timing around function call, logging, argument validation
+(parameter checking), checking pre/post-condition, authentication/authorization
+checking, etc. The Python folks use decorators quite a bit; see discussions on
+the Internet on those.
+
 =item * How is PSW different from Python::Decorator?
 
 PSW uses dynamic code generation (it generates Perl code on the fly). It also
