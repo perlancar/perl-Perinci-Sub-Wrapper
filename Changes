@@ -1,5 +1,23 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.47     2013-10-28 (SHARYANTO) (not yet released)
+
+         [NEW FEATURES]
+
+         - New option embed=>1 to generate code suitable for embedding/insertion
+           to existing code.
+
+         [BUG FIXES]
+
+         - When compile=0, wrap_sub() didn't return meta.
+
+         [INTERNAL]
+
+         - All variables in the generated code are now prefixed by '_w_' to
+           reduce the possibility of clash. The one exception is 'args'
+           (%args/@args/$args).
+
+
 0.46     2013-10-02 (SHARYANTO)
 
          - Can accept sub_name only instead of sub.
