@@ -17,6 +17,8 @@ Revision history for Perinci-Sub-Wrapper
            reduce the possibility of clash. The one exception is 'args'
            (%args/@args/$args).
 
+         - Use err().
+
 
 0.46     2013-10-02 (SHARYANTO)
 
