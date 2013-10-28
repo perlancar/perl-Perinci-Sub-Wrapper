@@ -1359,20 +1359,32 @@ L<Dist::Zilla::Plugin::Perinci::Sub::Wrapper>).
 =item * Single wrapper
 
 Instead of multiple/nested wrapping for implementing different features, PSW
-will generate a single large wrapper around your code, i.e.:
+is designed to generate a single large wrapper around your code, i.e.:
 
  sub _wrapper {
      ...
-     # do various stuffs before calling
+     # do various stuffs before calling:
+
+     # e.g. start timer
+     # e.g. convert, prefill, validate arguments
+     my @args = ...;
      ...
      your_sub(@args);
      ...
      # do various stuffs after calling
      ...
+     # e.g. report times
+     # e.g. perform retry
+     # e.g. convert or envelope results
+
+     # return result
  }
 
-This approach is also somewhat less flexible and cumbersome for wrapper authors,
-but can also have smaller function call overhead especially.
+Multiple functionalities will be added and combined in this single wrapper
+subroutine in the appropriate location. This is done to reduce function call
+overhead or depth of nested call levels.
+
+Of course, you can still wrap multiple times if wanted.
 
 =item * Rinci
 
