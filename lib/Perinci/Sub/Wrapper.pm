@@ -1013,7 +1013,7 @@ sub wrap {
                          SHARYANTO::String::Util::linenum($source) :
                                $source);
     }
-    my $result = {source=>$source};
+    my $result = {source=>$source, meta=>$meta};
     if ($args{compile}) {
         my $wrapped = eval $source;
         die "BUG: Wrapper code can't be compiled: $@" if $@ || !$wrapped;
@@ -1022,7 +1022,6 @@ sub wrap {
         bless $wrapped, $comppkg;
 
         $result->{sub}  = $wrapped;
-        $result->{meta} = $meta;
     }
     [200, "OK", $result];
 }
