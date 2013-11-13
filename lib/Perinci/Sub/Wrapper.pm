@@ -578,6 +578,7 @@ sub handle_args {
                 /\A(
                      summary|description|tags|default_lang|
                      schema|req|pos|greedy|
+                     default|
                      completion|element_completion|
                      cmdline_aliases|
                      cmdline_src|
@@ -589,7 +590,8 @@ sub handle_args {
 
         my $sch = $as->{schema};
         if ($sch) {
-            my $has_default = ref($sch) eq 'ARRAY' &&
+            my $has_default_prop = exists($as->{default});
+            my $has_sch_default  = ref($sch) eq 'ARRAY' &&
                 exists($sch->[1]{default}) ? 1:0;
             if ($va) {
                 my $dn = $an; $dn =~ s/\W+/_/g;
@@ -611,7 +613,12 @@ sub handle_args {
                     400, qq["Invalid value for argument '$an': \$err_$dn"],
                     "\$err_$dn");
                 $self->unindent;
-                if ($has_default) {
+                if ($has_default_prop) {
+                    $self->push_lines(
+                        '} else {',
+                        "    $at //= ".__squote($as->{default}).";",
+                        '}');
+                } elsif ($has_sch_default) {
                     $self->push_lines(
                         '} else {',
                         "    $at //= ".__squote($sch->[1]{default}).";",
