@@ -578,7 +578,7 @@ sub handle_args {
                 /\A(
                      summary|description|tags|default_lang|
                      schema|req|pos|greedy|
-                     completion|
+                     completion|element_completion|
                      cmdline_aliases|
                      cmdline_src|
                      x
