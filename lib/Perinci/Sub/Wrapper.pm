@@ -627,9 +627,13 @@ sub handle_args {
                     $self->push_lines('}');
                 }
             } else {
-                $self->push_lines(
-                    "$at //= ".__squote($sch->[1]{default}).';')
-                    if $has_default;
+                if ($has_default_prop) {
+                    $self->push_lines(
+                        "$at //= ".__squote($as->{default}).';');
+                } elsif ($has_sch_default) {
+                    $self->push_lines(
+                        "$at //= ".__squote($sch->[1]{default}).';');
+                }
             }
         }
         if ($as->{req}) {
