@@ -530,7 +530,7 @@ sub handle_args {
 
     # normalize schema
     if ($ns) {
-        for my $an (keys %$v) {
+        for my $an (sort keys %$v) {
             my $as = $v->{$an};
             if ($as->{schema}) {
                 $as->{schema} =
@@ -538,7 +538,7 @@ sub handle_args {
             }
             my $als = $as->{cmdline_aliases};
             if ($als) {
-                for my $al (keys %$als) {
+                for my $al (sort keys %$als) {
                     if ($als->{$al}{schema}) {
                         $als->{$al}{schema} =
                             $self->_sah->normalize_schema($als->{$al}{schema});
@@ -552,14 +552,14 @@ sub handle_args {
     $self->push_lines('', '# check arguments');
 
     unless ($self->{_args}{allow_invalid_args}) {
-        $self->push_lines('for (keys %args) {');
+        $self->push_lines('for (sort keys %args) {');
         $self->indent;
         $self->_errif(400, q["Invalid argument name '$_'"],
                       '!/\A(-?)\w+(\.\w+)*\z/o');
         unless ($self->{_args}{allow_unknown_args}) {
             $self->_errif(
                 400, q["Unknown argument '$_'"],
-                '!($1 || $_ ~~ '.__squote([keys %$v]).')');
+                '!($1 || $_ ~~ '.__squote([sort keys %$v]).')');
         }
         $self->unindent;
         $self->push_lines('}');
@@ -699,7 +699,7 @@ sub handle_result {
         $self->push_lines("my \$res2 = \$res->[2];");
         $self->push_lines("my \$err2_res;");
 
-        for my $s (keys %ss) {
+        for my $s (sort keys %ss) {
             my $sch = $ss{$s};
             my $cd = $self->_plc->compile(
                 data_name            => 'res2',
