@@ -582,6 +582,7 @@ sub handle_args {
                      completion|element_completion|
                      cmdline_aliases|
                      cmdline_src|
+                     cmdline_on_getopt|
                      x
                  )(\..+)?\z/x;
         }
