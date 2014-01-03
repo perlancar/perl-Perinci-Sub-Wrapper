@@ -1,5 +1,10 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.50     2014-01-03 (SHARYANTO)
+
+         - wrapper: Rethrow (warn()) exception when wrapped function dies.
+
+
 0.49     2013-12-25 (SHARYANTO)
 
          - Handle (ignore) argument spec's 'cmdline_on_getopt (Rinci 1.1.43).
