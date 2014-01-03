@@ -998,6 +998,7 @@ sub wrap {
         # _needs_eval will automatically be enabled here, due after_eval being
         # filled
         $self->select_section('after_eval');
+        $self->push_lines('warn $eval_err if $eval_err;');
         $self->_errif(500, '"Function died: $eval_err"', '$eval_err');
     }
 
