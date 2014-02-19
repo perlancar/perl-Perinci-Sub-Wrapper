@@ -141,12 +141,28 @@ sub _check_known_section {
     $ks->{$section} or die "BUG: Unknown code section '$section'";
 }
 
+sub _return_res {
+    my ($self) = @_;
+    if (!$self->{_avoid_postamble}) {
+        # normally we do this
+         'goto RETURN_RES;';
+    } else {
+        # but if we are avoiding postamble (e.g. we do this in embed mode and do
+        # not add do { ... } block), we need to return the result right away
+        if ($self->{_meta}{result_naked}) {
+            'return $_wres->[2];';
+        } else {
+            'return $_wres;';
+        }
+    }
+}
+
 sub _err {
     my ($self, $c_status, $c_msg) = @_;
     $self->push_lines(
         # we set $res here when we return from inside the eval block
         '$_w_res = ' . "[$c_status, $c_msg]" . ';',
-        'goto RETURN_RES;');
+        $self->_return_res);
 }
 
 sub _errif {
@@ -757,12 +773,12 @@ sub handle_deps {
     if ($value->{tmp_dir}) {
         $self->push_lines(
             'unless ($args{-tmp_dir}) { $_w_res = [412, "Dep failed: '.
-                'please specify -tmp_dir"]; goto RETURN_RES }');
+                'please specify -tmp_dir"]; '. $self->_return_res . ' }');
     }
     if ($value->{trash_dir}) {
         $self->push_lines(
             'unless ($args{-trash_dir}) { $_w_res = [412, "Dep failed: '.
-                'please specify -trash_dir"]; goto RETURN_RES }');
+                'please specify -trash_dir"]; '. $self->_return_res .' }');
     }
     if ($value->{undo_trash_dir}) {
         $self->push_lines(join(
@@ -770,7 +786,7 @@ sub handle_deps {
             'unless ($args{-undo_trash_dir} || $args{-tx_manager} || ',
             '$args{-undo_action} && $args{-undo_action}=~/\A(?:undo|redo)\z/) ',
             '{ $_w_res = [412, "Dep failed: ',
-            'please specify -undo_trash_dir"]; goto RETURN_RES }'
+            'please specify -undo_trash_dir"]; '. $self->_return_res .' }'
         ));
     }
 }
@@ -971,7 +987,7 @@ sub wrap {
             $self->push_lines(
                 '$_w_res = [500, "BUG: Sub does not produce envelope"];');
         }
-        $self->push_lines('goto RETURN_RES;');
+        $self->push_lines($self->_return_res);
         $self->unindent;
         $self->push_lines('}');
     }
@@ -1329,39 +1345,28 @@ For dynamic usage:
  my ($wrapped_sub, $meta) = ($res->[2]{sub}, $res->[2]{meta});
  $wrapped_sub->(); # call the wrapped function
 
-For embedded usage, see L<Dist::Zilla::Plugin::Perinci::Sub::Wrapper>.
-
 
 =head1 DESCRIPTION
 
 Perinci::Sub::Wrapper (PSW for short) is an extensible subroutine wrapping
-framework. It generates code to do stuffs before calling your subroutine (e.g.
+framework. It generates code to do stuffs before calling your subroutine, like
 validate arguments, convert arguments from positional/array to named/hash or
-vice versa, etc) as well as after (e.g. retry calling for a number of times if
-subroutine returns a non-success status, check subroutine result against a
-schema, etc). Some other things it can do: apply a timeout, currying, and so on.
-The framework is extensible.
+vice versa, etc; as well as generate code to do stuffs after calling your
+subroutine, like retry calling for a number of times if subroutine returns a
+non-success status, check subroutine result against a schema, etc). Some other
+things it can do: apply a timeout, currying, and so on.
 
 PSW differs from other function composition or decoration system like Python
 decorators (or its Perl equivalent L<Python::Decorator>) in a number of ways:
 
 =over
 
-=item * Code generation
-
-PSW generates Perl wrapper code according to some specification (L<Rinci>
-metadata) which will be compiled before use. This is more cumbersome for wrapper
-authors, but can give some nice features, like the ability to embed the wrapping
-code directly into the source code of wrapped subroutine so it does not
-introduce an extra function call (see
-L<Dist::Zilla::Plugin::Perinci::Sub::Wrapper>).
-
 =item * Single wrapper
 
 Instead of multiple/nested wrapping for implementing different features, PSW
 is designed to generate a single large wrapper around your code, i.e.:
 
- sub _wrapper {
+ sub _wrapper_for_your_sub {
      ...
      # do various stuffs before calling:
 
@@ -1437,7 +1442,9 @@ To wrap it:
  $SPEC{gen_random_array} = $res->[2]{meta};
 
 Or you can call your function via L<Perinci::Access> which will wrap the
-function for you.
+function for you. This kind of wrapping will cause Perl to compile this code:
+
+
 
 Another usage is to embed the wrapper code directly into your code during the
 build process. If you use L<Dist::Zilla>, you can use the
