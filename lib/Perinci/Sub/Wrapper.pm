@@ -419,14 +419,8 @@ sub handle_features {
 
     if ($v->{tx} && $v->{tx}{req}) {
         $self->push_lines('', '# check required transaction');
-        if ($self->{_args}{trap}) {
-            $self->_errif(412, '"Must run with transaction (pass -tx_manager)"',
-                          '!$args{-tx_manager}');
-        } else {
-            $self->push_lines(
-                'die "Must run with transaction (pass -tx_manager)" '.
-                    'unless $args{-tx_manager};'),
-        }
+        $self->_errif(412, '"Must run with transaction (pass -tx_manager)"',
+                      '!$args{-tx_manager}');
     }
 }
 
@@ -763,11 +757,7 @@ sub handle_deps {
     $self->push_lines('require Perinci::Sub::DepChecker;');
     $self->push_lines('my $_w_deps_res = Perinci::Sub::DepChecker::check_deps($'.
                           $v.'->{deps});');
-    if ($self->{_args}{trap}) {
-        $self->_errif(412, '"Deps failed: $_w_deps_res"', '$_w_deps_res');
-    } else {
-        $self->push_lines('die "Deps failed: $_w_deps_res" if $_w_deps_res;');
-    }
+    $self->_errif(412, '"Deps failed: $_w_deps_res"', '$_w_deps_res');
 
     # we handle some deps our own
     if ($value->{tmp_dir}) {
@@ -813,19 +803,15 @@ sub wrap {
     $args{meta} or return [400, "Please specify meta"];
     my $meta     = Data::Clone::clone($args{meta});
 
-    my $mp = "_perinci.sub.wrapper";
-    $args{convert}             //= $meta->{"$mp.convert"} // {};
-    $args{trap}                //= $meta->{"$mp.trap"} // 1;
-    $args{compile}             //= 1;
-    $args{normalize_schemas}   //= $meta->{"$mp.normalize_schemas"} // 1;
-    $args{remove_internal_properties} //=
-        $meta->{"$mp.remove_internal_properties"} // 1;
-    $args{validate_args}       //= $meta->{"$mp.validate_args"} //
-        $ENV{PERINCI_WRAPPER_VALIDATE_ARGS} // 1;
-    $args{validate_result}     //= $meta->{"$mp.validate_result"} // 1;
-    $args{allow_invalid_args}  //= $meta->{"$mp.allow_invalid_args"} // 0;
-    $args{allow_unknown_args}  //= $meta->{"$mp.allow_unknown_args"} // 0;
-    $args{skip}                //= $meta->{"$mp.skip"} // [];
+    $args{convert}                    //= {};
+    $args{compile}                    //= 1;
+    $args{normalize_schemas}          //= 1;
+    $args{remove_internal_properties} //= 1;
+    $args{validate_args}              //= 1;
+    $args{validate_result}            //= 1;
+    $args{allow_invalid_args}         //= 0;
+    $args{allow_unknown_args}         //= 0;
+    $args{skip}                       //= [];
 
     # temp vars
     my $convert  = $args{convert};
@@ -926,14 +912,6 @@ sub wrap {
         die "Please update property handler $k which is still at v=$hm->{v} ".
             "(needs v=$protocol_version)"
                 unless $hm->{v} == $protocol_version;
-        if ($args{forbid_tags} && $hm->{tags}) {
-            for my $t (@{$hm->{tags}}) {
-                if ($t ~~ $args{forbid_tags}) {
-                    return [412, "Can't wrap property $k0 (forbidden by ".
-                                "forbid_tags, tag=$t)"];
-                }
-            }
-        }
         my $ha = {
             prio=>$hm->{prio}, value=>$meta->{$k0}, property=>$k0,
             meth=>"handle_$k",
@@ -993,7 +971,7 @@ sub wrap {
         $self->push_lines('}');
     }
 
-    if ($args{trap} || $self->_needs_eval) {
+    if ($self->_needs_eval) {
         $self->select_section('CLOSE_EVAL');
         $self->unindent;
         $self->push_lines(
@@ -1118,17 +1096,6 @@ _
             summary => 'Properties to skip '.
                 '(treat as if they do not exist in metadata)',
         },
-        trap => {
-            schema => ['bool' => {default=>1}],
-            summary => 'Whether to trap exception using an eval block',
-            description => <<'_',
-
-If set to true, will wrap call using an eval {} block and return 500 /undef if
-function dies. Note that if some other properties requires an eval block (like
-'timeout') an eval block will be added regardless of this parameter.
-
-_
-        },
         compile => {
             schema => ['bool' => {default=>1}],
             summary => 'Whether to compile the generated wrapper',
@@ -1169,20 +1136,6 @@ If turned on, will produce various debugging in the generated code. Currently
 what this does:
 
 * add more comments (e.g. for each property handler)
-
-_
-        },
-        forbid_tags => {
-            schema => 'array',
-            summary => 'Forbid properties which have certain wrapping tags',
-            description => <<'_',
-
-Some property wrapper, like dies_on_error (see
-Perinci::Sub::Property::dies_on_error) has tags 'die', to signify that it can
-cause wrapping code to die.
-
-Sometimes such properties are not desirable, e.g. in daemon environment. The use
-of such properties can be forbidden using this setting.
 
 _
         },
@@ -1462,11 +1415,6 @@ The OO interface is only used internally or when you want to extend the wrapper.
 If set to 1, will log the generated wrapper code. This value is used to set
 C<$Log_Wrapper_Code> if it is not already set.
 
-=head2 PERINCI_WRAPPER_VALIDATE_ARGS (bool, default 1)
-
-Can be set to 0 to skip adding validation code. This provides a default for
-C<validate_args> wrap_sub() argument.
-
 
 =head1 PERFORMANCE NOTES
 
@@ -1484,11 +1432,11 @@ it is about 0.12 mil/sec. So if your sub needs to be called a million times a
 second, the wrapping adds too big of an overhead.
 
 By default, wrapper provides these functionality: checking invalid and unknown
-arguments, argument value validation, exception trapping (C<eval {}>), and
-result checking. If we turn off all these features except argument validation
-(by adding options C<< allow_invalid_args=>1, trap=>0, validate_result=>0 >>)
-call performance increases to around 0.47 mil/sec (for C<< $sub->() >> and 0.24
-mil/sec (for C<< $sub->(a=>1) >>).
+arguments, argument value validation, and result checking. If we turn off all
+these features except argument validation (by adding options C<<
+allow_invalid_args=>1, validate_result=>0 >>) call performance increases to
+around 0.47 mil/sec (for C<< $sub->() >> and 0.24 mil/sec (for C<< $sub->(a=>1)
+>>).
 
 As more arguments are introduced in the schema and passed, and as argument
 schemas become more complex, overhead will increase. For example, for 5 int
