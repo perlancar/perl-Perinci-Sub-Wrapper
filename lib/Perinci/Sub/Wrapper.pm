@@ -7,7 +7,6 @@ use experimental 'smartmatch';
 use Log::Any '$log';
 
 use Perinci::Sub::Util qw(err);
-use Scalar::Util       qw(blessed);
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(wrap_sub);
@@ -24,12 +23,19 @@ our %SPEC;
 # which version it follows in its meta. if unspecified, it's assumed to be 1.
 our $protocol_version = 2;
 
-my $default_wrapped_package = 'Perinci::Sub::Wrapped';
-
 sub new {
     my ($class, %args) = @_;
-    $args{comppkg} //= $default_wrapped_package;
-    $args{indent}  //= " " x 4;
+    $args{_compiled_package}           //= 'Perinci::Sub::Wrapped';
+    $args{indent}                      //= " " x 4;
+    $args{convert}                     //= {};
+    $args{compile}                     //= 1;
+    $args{validate_args}               //= 1;
+    $args{validate_result}             //= 1;
+
+    # internal attributes
+    $args{_schema_is_normalized}       //= 0;
+    $args{_remove_internal_properties} //= 1;
+
     bless \%args, $class;
 }
 
@@ -372,11 +378,11 @@ sub handle_links {
     my $v = $self->{_meta}{links};
     return unless $v;
 
-    my $rm = $self->{_args}{remove_internal_properties};
+    my $opt_rip = $self->{_args}{_remove_internal_properties};
     for my $ln (@$v) {
         for my $k (keys %$ln) {
             if ($k =~ /^_/) {
-                delete $ln->{$k} if $rm;
+                delete $ln->{$k} if $opt_rip;
             }
         }
     }
@@ -394,11 +400,11 @@ sub handle_examples {
     my $v = $self->{_meta}{examples};
     return unless $v;
 
-    my $rm = $self->{_args}{remove_internal_properties};
+    my $opt_rip = $self->{_args}{_remove_internal_properties};
     for my $ex (@$v) {
         for my $k (keys %$ex) {
             if ($k =~ /^_/) {
-                delete $ex->{$k} if $rm;
+                delete $ex->{$k} if $opt_rip;
             }
         }
     }
@@ -531,12 +537,12 @@ sub handle_args {
     my $v = $self->{_meta}{args};
     return unless $v;
 
-    my $rm = $self->{_args}{remove_internal_properties};
-    my $ns = $self->{_args}{normalize_schemas};
-    my $va = $self->{_args}{validate_args};
+    my $opt_rip = $self->{_args}{_remove_internal_properties};
+    my $opt_sin = $self->{_args}{_schema_is_normalized};
+    my $opt_va  = $self->{_args}{validate_args};
 
     # normalize schema
-    if ($ns) {
+    unless ($opt_sin) {
         for my $an (keys %$v) {
             my $as = $v->{$an};
             if ($as->{schema}) {
@@ -555,33 +561,30 @@ sub handle_args {
         }
     }
 
-    $self->select_section('before_call_arg_validation');
-    $self->push_lines('', '# check arguments');
-
-    unless ($self->{_args}{allow_invalid_args}) {
+    if ($opt_va) {
+        $self->select_section('before_call_arg_validation');
+        $self->push_lines('', '# check args');
         $self->push_lines('for (keys %args) {');
         $self->indent;
         $self->_errif(400, q["Invalid argument name '$_'"],
                       '!/\A(-?)\w+(\.\w+)*\z/o');
-        unless ($self->{_args}{allow_unknown_args}) {
-            $self->_errif(
-                400, q["Unknown argument '$_'"],
-                '!($1 || $_ ~~ '.__squote([keys %$v]).')');
-        }
+        $self->_errif(
+            400, q["Unknown argument '$_'"],
+            '!($1 || $_ ~~ '.__squote([keys %$v]).')');
         $self->unindent;
         $self->push_lines('}');
     }
 
-    for my $an (sort keys %$v) {
-        my $as = $v->{$an};
-        for (sort keys %$as) {
+    for my $argname (sort keys %$v) {
+        my $argspec = $v->{$argname};
+        for (sort keys %$argspec) {
             if (/\A_/) {
-                delete $as->{$_} if $rm;
+                delete $argspec->{$_} if $opt_rip;
                 next;
             }
             # XXX schema's schema
             # check known arg key
-            die "Unknown arg spec key '$_' for arg '$an'" unless
+            die "Unknown arg spec key '$_' for arg '$argname'" unless
                 /\A(
                      summary|description|tags|default_lang|
                      schema|req|pos|greedy|
@@ -592,26 +595,26 @@ sub handle_args {
                  )(\..+)?\z/x;
         }
 
-        my $at = "\$args{'$an'}";
+        my $argterm = "\$args{'$argname'}";
 
-        my $sch = $as->{schema};
+        my $sch = $argspec->{schema};
         if ($sch) {
             my $has_default = ref($sch) eq 'ARRAY' &&
                 exists($sch->[1]{default}) ? 1:0;
-            if ($va) {
-                my $dn = $an; $dn =~ s/\W+/_/g;
+            if ($opt_va) {
+                my $dn = $argname; $dn =~ s/\W+/_/g;
                 my $cd = $self->_plc->compile(
                     data_name            => $dn,
-                    data_term            => $at,
+                    data_term            => $argterm,
                     schema               => $sch,
-                    schema_is_normalized => $ns,
+                    schema_is_normalized => !$ns,
                     return_type          => 'str',
                     indent_level         => $self->get_indent_level + 4,
                 );
                 $self->_add_module($_) for @{ $cd->{modules} };
                 $self->_add_var($_, $cd->{vars}{$_})
                     for sort keys %{ $cd->{vars} };
-                $self->push_lines("if (exists($at)) {");
+                $self->push_lines("if (exists($argterm)) {");
                 $self->indent;
                 $self->push_lines("my \$err_$dn;\n$cd->{result};");
                 $self->_errif(
@@ -621,20 +624,21 @@ sub handle_args {
                 if ($has_default) {
                     $self->push_lines(
                         '} else {',
-                        "    $at //= ".__squote($sch->[1]{default}).";",
+                        "    $argterm //= ".__squote($sch->[1]{default}).";",
                         '}');
                 } else {
                     $self->push_lines('}');
                 }
             } else {
                 $self->push_lines(
-                    "$at //= ".__squote($sch->[1]{default}).';')
+                    "$argterm //= ".__squote($sch->[1]{default}).';')
                     if $has_default;
             }
         }
         if ($as->{req}) {
             $self->_errif(
-                400, qq["Missing required argument: $an"], "!exists($at)");
+                400, qq["Missing required argument: $argname"],
+                "!exists($argterm)");
         }
     }
 }
@@ -648,13 +652,14 @@ sub handle_result {
     my $v = $self->{_meta}{result};
     return unless $v;
 
-    my $ns = $self->{_args}{normalize_schemas};
-    my $vr = $self->{_args}{validate_result};
+    my $opt_sin = $self->{_args}{_schema_is_normalized};
+    my $opt_vr  = $self->{_args}{validate_result};
+    my $opt_rip = $self->{_args}{_remove_internal_properties};
 
     my %ss; # key = status, value = schema
 
     # normalize schemas
-    if ($ns) {
+    unless ($opt_sin) {
         if ($v->{schema}) {
             $v->{schema} = $self->_sah->normalize_schema($v->{schema});
         }
@@ -669,10 +674,9 @@ sub handle_result {
         }
     }
 
-    my $rm = $self->{_args}{remove_internal_properties};
     for my $k (keys %$v) {
         if ($k =~ /^_/) {
-            delete $v->{$k} if $rm;
+            delete $v->{$k} if $opt_rip;
         }
     }
 
@@ -790,36 +794,42 @@ sub wrap {
 
     my ($self, %args) = @_;
 
-    warn "wrap() is currently designed to be only called once, ".
-        "to wrap again, please create a new ".__PACKAGE__." object"
-            if $self->{_done}++;
+    # reset state/work data
+    $self->{_cur_section}      = undef;
+    $self->{_cur_handler}      = undef;
+    $self->{_cur_handler_args} = undef;
+    $self->{_cur_handler_meta} = undef;
+    $self->{_levels}           = {};
+    $self->{_codes}            = {};
+    $self->{_args}             = \%args;
+    $self->{_meta}             = $meta; # the new metadata
+    $self->{_modules} = []; # modules loaded by wrapper sub
 
     my $sub      = $args{sub};
     my $sub_name = $args{sub_name};
     $sub || $sub_name or return [400, "Please specify sub or sub_name"];
     $args{meta} or return [400, "Please specify meta"];
+    # we clone the meta because we'll replace stuffs
     my $meta     = Data::Clone::clone($args{meta});
 
-    $args{convert}                    //= {};
-    $args{compile}                    //= 1;
-    $args{normalize_schemas}          //= 1;
-    $args{remove_internal_properties} //= 1;
-    $args{validate_args}              //= 1;
-    $args{validate_result}            //= 1;
-    $args{allow_invalid_args}         //= 0;
-    $args{allow_unknown_args}         //= 0;
-    $args{skip}                       //= [];
+}
+
+sub wrap {
+    require Data::Clone;
+    require Scalar::Util;
+
+    my ($self, %args) = @_;
 
     # temp vars
-    my $convert  = $args{convert};
-    my $rip      = $args{remove_internal_properties};
+    my $opt_cvt = $args{replace};
+    my $opt_rip = $args{_remove_internal_properties};
 
-    my $comppkg  = $self->{comppkg};
+    my $comppkg  = $self->{_compiled_package};
 
     local $self->{_debug} = $args{debug} // 0;
 
     # add properties from convert, if not yet mentioned in meta
-    for (keys %$convert) {
+    for (keys %$cvt) {
         $meta->{$_} = undef unless exists $meta->{$_};
     }
 
@@ -848,18 +858,6 @@ sub wrap {
     my $metaname = $comppkg . "::meta".Scalar::Util::refaddr($meta);
     { no strict 'refs'; no warnings; ${$metaname} = $meta; }
     $self->{_var_meta} = $metaname;
-
-    # reset work variables. we haven't tested this yet because we expect the
-    # object to be used only for one-off wrapping, via wrap_sub().
-    $self->{_cur_section} = undef;
-    $self->{_cur_handler} = undef;
-    $self->{_cur_handler_args} = undef;
-    $self->{_cur_handler_meta} = undef;
-    $self->{_levels} = {};
-    $self->{_codes} = {};
-    $self->{_args} = \%args;
-    $self->{_meta} = $meta; # the new metadata
-    $self->{_modules} = []; # modules loaded by wrapper sub
 
     $self->select_section('OPEN_SUB');
     $self->push_lines(
@@ -1010,9 +1008,6 @@ sub wrap {
         my $wrapped = eval $source;
         die "BUG: Wrapper code can't be compiled: $@" if $@ || !$wrapped;
 
-        # mark the wrapper with bless, to detect double wrapping attempt
-        bless $wrapped, $comppkg;
-
         $result->{sub}  = $wrapped;
     }
     [200, "OK", $result];
@@ -1022,13 +1017,6 @@ $SPEC{wrap_sub} = {
     v => 1.1,
     summary => 'Wrap subroutine to do various things, '.
         'like enforcing Rinci properties',
-    description => <<'_',
-
-Will wrap subroutine and bless the generated wrapped subroutine (by default into
-`Perinci::Sub::Wrapped`) as a way of marking that the subroutine is a wrapped
-one.
-
-_
     result => {
         summary => 'The wrapped subroutine along with its new metadata',
         description => <<'_',
@@ -1088,11 +1076,6 @@ will be done automatically), args_as, result_naked, default_lang.
 
 _
         },
-        skip => {
-            schema => 'array*',
-            summary => 'Properties to skip '.
-                '(treat as if they do not exist in metadata)',
-        },
         compile => {
             schema => ['bool' => {default=>1}],
             summary => 'Whether to compile the generated wrapper',
@@ -1100,27 +1083,6 @@ _
 
 Can be set to 0 to not actually wrap but just return the generated wrapper
 source code.
-
-_
-        },
-        normalize_schemas => {
-            schema => ['bool' => {default=>1}],
-            summary => 'Whether to normalize schemas in metadata',
-            description => <<'_',
-
-By default, wrapper normalize Sah schemas in metadata, like in 'args' or
-'result' property, for convenience so that it does not need to be normalized
-again prior to use. If you want to turn off this behaviour, set to false.
-
-_
-        },
-        remove_internal_properties => {
-            schema => ['bool' => {default=>1}],
-            summary => 'Whether to remove properties prefixed with _',
-            description => <<'_',
-
-By default, wrapper removes internal properties (properties which start with
-underscore) in the new metadata. Set this to false to keep them.
 
 _
         },
@@ -1144,28 +1106,6 @@ _
 If set to true, will validate arguments. Validation error will cause status 400
 to be returned. This will only be done for arguments which has `schema` arg spec
 key. Will not be done if `args` property is skipped.
-
-_
-        },
-        allow_invalid_args => {
-            schema => [bool => default=>0],
-            summary => 'Whether to allow invalid arguments',
-            description => <<'_',
-
-By default, wrapper will require that all argument names are valid
-(`/\A-?\w+\z/`), except when this option is turned on.
-
-_
-        },
-        allow_unknown_args => {
-            schema => [bool => default=>0],
-            summary => 'Whether to allow unknown arguments',
-            description => <<'_',
-
-By default, this setting is set to false, which means that wrapper will require
-that all arguments are specified in `args` property, except for special
-arguments (those started with underscore), which will be allowed nevertheless.
-Will only be done if `allow_invalid_args` is set to false.
 
 _
         },
@@ -1333,19 +1273,9 @@ performance for C<< $sub->() >> of about 0.28 mil/sec. For C<< $sub->(a=>1) >>
 it is about 0.12 mil/sec. So if your sub needs to be called a million times a
 second, the wrapping adds too big of an overhead.
 
-By default, wrapper provides these functionality: checking invalid and unknown
-arguments, argument value validation, and result checking. If we turn off all
-these features except argument validation (by adding options C<<
-allow_invalid_args=>1, validate_result=>0 >>) call performance increases to
-around 0.47 mil/sec (for C<< $sub->() >> and 0.24 mil/sec (for C<< $sub->(a=>1)
->>).
-
 As more arguments are introduced in the schema and passed, and as argument
-schemas become more complex, overhead will increase. For example, for 5 int
-arguments being declared and passed, call performance is around 0.11 mil/sec.
-Without passing any argument when calling, call performance is still around 0.43
-mil/sec, indicating that the significant portion of the overhead is in argument
-validation.
+schemas become more complex, overhead will increase. The significant portion of
+the overhead is in argument validation.
 
 
 =head1 FAQ
