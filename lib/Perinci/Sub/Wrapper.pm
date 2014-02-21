@@ -10,7 +10,7 @@ use Perinci::Sub::Util qw(err);
 use Scalar::Util       qw(blessed);
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(wrap_sub wrap_all_subs wrapped);
+our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
@@ -147,8 +147,6 @@ sub _return_res {
         # normally we do this
          'goto RETURN_RES;';
     } else {
-        # but if we are avoiding postamble (e.g. we do this in embed mode and do
-        # not add do { ... } block), we need to return the result right away
         if ($self->{_meta}{result_naked}) {
             'return $_wres->[2];';
         } else {
@@ -160,7 +158,6 @@ sub _return_res {
 sub _err {
     my ($self, $c_status, $c_msg) = @_;
     $self->push_lines(
-        # we set $res here when we return from inside the eval block
         '$_w_res = ' . "[$c_status, $c_msg]" . ';',
         $self->_return_res);
 }
@@ -1188,101 +1185,6 @@ _
 };
 sub wrap_sub {
     __PACKAGE__->new->wrap(@_);
-}
-
-$SPEC{wrap_all_subs} = {
-    v => 1.1,
-    summary => 'Wrap all subroutines in a package '.
-        'and replace them with the wrapped version',
-    description => <<'_',
-
-This function will search all subroutines in a package which have metadata, wrap
-them, then replace the original subroutines and metadata with the wrapped
-version.
-
-One common use case is to put something like this at the bottom of your module:
-
-    Perinci::Sub::Wrapper::wrap_all_subs();
-
-to wrap ("protect") all your module's subroutines and discard the original
-unwrapped version.
-
-_
-    args => {
-        package => {
-            schema => 'str*',
-            summary => 'Package to search subroutines in',
-            description => <<'_',
-
-Default is caller package.
-
-_
-        },
-        wrap_args => {
-            schema => 'hash*',
-            summary => 'Arguments to pass to wrap_sub()',
-            description => <<'_',
-
-Each subroutine will be wrapped by wrap_sub(). This argument specifies what
-arguments to pass to wrap_sub().
-
-Note: If you need different arguments for different subroutine, perhaps this
-function is not for you. You can perform your own loop and wrap_sub().
-
-_
-        },
-    },
-    result => {
-        summary => 'The original unwrapped subroutines and their metadata',
-        description => <<'_',
-
-Example:
-
-    {
-        func1 => {orig_sub=>..., orig_meta=>{...}},
-        func2 => {orig_sub=>..., orig_meta=>{...}},
-        ...
-    }
-
-If you need to restore the original subroutines (unwrap), save this somewhere.
-Otherwise, you can discard this.
-
-_
-        schema=>'hash*',
-    },
-};
-sub wrap_all_subs {
-    my %args      = @_;
-    my @caller    = CORE::caller(0);
-    my $package   = $args{package}   // $caller[0];
-    my $wrap_args = $args{wrap_args} // {};
-
-    my $recap = {};
-
-    no strict 'refs';
-
-    my $metas = \%{"$package\::SPEC"} // {};
-    for my $f (keys %$metas) {
-        next unless $f =~ /\A\w+\z/;
-        my $osub  = \&{"$package\::$f"};
-        my $ometa = $metas->{$f};
-        $recap->{$f} = {orig_sub => $osub, orig_meta => $ometa};
-        my $res = wrap_sub(%$wrap_args, sub => $osub, meta => $ometa);
-        return err(500, "Can't wrap $package\::$f", $res)
-            unless $res->[0] == 200;
-        $recap->{$f}{new_sub}  = $res->[2]{sub};
-        $recap->{$f}{new_meta} = $res->[2]{meta};
-    }
-
-    no warnings 'redefine';
-
-    # replace the originals
-    for my $f (keys %$recap) {
-        *{"$package\::$f"} = $recap->{$f}{new_sub};
-        ${"$package\::SPEC"}{$f} = $recap->{$f}{new_meta};
-    }
-
-    [200, "OK", $recap];
 }
 
 1;
