@@ -46,7 +46,7 @@ test_wrap(
 
 $meta = {v=>1.1, args=>{a=>{req=>1, schema=>'int*'}}};
 test_wrap(
-    name        => 'req arg + schema req no default',
+    name        => 'req arg + schema req no schema default',
     wrap_args   => {sub => $sub, meta => $meta},
     calls       => [
         {argsr=>[a=>1], status=>200, name=>'ok'},
@@ -98,7 +98,7 @@ test_wrap(
 
 $meta = {v=>1.1, args=>{a=>{req=>1, schema=>[int => default=>10]}}};
 test_wrap(
-    name        => 'req arg + schema no req with default',
+    name        => 'req arg + schema no req with schema default',
     wrap_args   => {sub => $sub, meta => $meta},
     calls       => [
         {argsr=>[], status=>200, actual_res_re=>qr/^a=10/m,
@@ -121,7 +121,7 @@ test_wrap(
 
 $meta = {v=>1.1, args=>{a=>{req=>1, schema=>'int'}}};
 test_wrap(
-    name        => 'req arg + schema no req no default',
+    name        => 'req arg + schema no req no schema default',
     wrap_args   => {sub => $sub, meta => $meta},
     calls       => [
         {argsr=>[], status=>400, name=>'missing arg'},
@@ -141,7 +141,7 @@ test_wrap(
 
 $meta = {v=>1.1, args=>{a=>{}}};
 test_wrap(
-    name        => 'no req arg + schema no req with default',
+    name        => 'no req arg + schema no req with schema default',
     wrap_args   => {sub => $sub, meta => $meta},
     calls       => [
         {argsr=>[], status=>200, name=>'missing arg'},
@@ -151,7 +151,7 @@ test_wrap(
 
 $meta = {v=>1.1, args=>{a=>{schema=>[int => default=>10]}}};
 test_wrap(
-    name        => 'no req arg + schema with default',
+    name        => 'no req arg + schema with schema default',
     wrap_args   => {sub => $sub, meta => $meta},
     calls       => [
         {argsr=>[], status=>200, actual_res_like=>qr/^a=10/m,
@@ -171,5 +171,63 @@ test_wrap(
          name=>'undef arg value'},
     ],
 );
+
+subtest "default" => sub {
+    my $meta;
+
+    $meta = {v=>1.1, args=>{a=>{schema=>"int", default=>10}}};
+    test_wrap(
+        name        => 'normal',
+        wrap_args   => {sub => $sub, meta => $meta},
+        calls       => [
+            {argsr=>[], status=>200, actual_res_like=>qr/^a=10/m,
+             name=>'missing arg'},
+            {argsr=>[a=>undef], status=>200, actual_res_like=>qr/^a=10/m,
+             name=>'undef arg value'},
+            {argsr=>[a=>2], status=>200, actual_res_like=>qr/^a=2/m,
+             name=>'supplied arg'},
+        ],
+    );
+    $meta = {v=>1.1, args=>{a=>{schema=>"int", default=>10, req=>1}}};
+    test_wrap(
+        name        => 'req',
+        wrap_args   => {sub => $sub, meta => $meta},
+        calls       => [
+            {argsr=>[], status=>200, actual_res_like=>qr/^a=10/m,
+             name=>'missing arg'},
+            {argsr=>[a=>undef], status=>200, actual_res_like=>qr/^a=10/m,
+             name=>'undef arg value'},
+            {argsr=>[a=>2], status=>200, actual_res_like=>qr/^a=2/m,
+             name=>'supplied arg'},
+        ],
+    );
+    $meta = {v=>1.1, args=>{a=>{schema=>[int => default=>5],
+                                default=>10, req=>1}}};
+    test_wrap(
+        name        => 'default prop supersedes schema default',
+        wrap_args   => {sub => $sub, meta => $meta},
+        calls       => [
+            {argsr=>[], status=>200, actual_res_like=>qr/^a=10/m,
+             name=>'missing arg'},
+            {argsr=>[a=>undef], status=>200, actual_res_like=>qr/^a=10/m,
+             name=>'undef arg value'},
+            {argsr=>[a=>2], status=>200, actual_res_like=>qr/^a=2/m,
+             name=>'supplied arg'},
+        ],
+    );
+    $meta = {v=>1.1, args=>{a=>{schema=>"int", default=>10}}};
+    test_wrap(
+        name        => 'default supplied even when validate_args=0',
+        wrap_args   => {sub => $sub, meta => $meta, validate_args=>0},
+        calls       => [
+            {argsr=>[], status=>200, actual_res_like=>qr/^a=10/m,
+             name=>'missing arg'},
+            {argsr=>[a=>undef], status=>200, actual_res_like=>qr/^a=10/m,
+             name=>'undef arg value'},
+            {argsr=>[a=>2], status=>200, actual_res_like=>qr/^a=2/m,
+             name=>'supplied arg'},
+        ],
+    );
+};
 
 done_testing;

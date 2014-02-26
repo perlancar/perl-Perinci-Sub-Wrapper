@@ -551,7 +551,7 @@ sub handle_args {
             }
             my $als = $as->{cmdline_aliases};
             if ($als) {
-                for my $al (keys %$als) {
+                for my $al (sort keys %$als) {
                     if ($als->{$al}{schema}) {
                         $als->{$al}{schema} =
                             $self->_sah->normalize_schema($als->{$al}{schema});
@@ -571,6 +571,13 @@ sub handle_args {
         $self->_errif(
             400, q["Unknown argument '$_'"],
             '!($1 || $_ ~~ '.__squote([keys %$v]).')');
+
+        $self->push_lines('for (sort keys %args) {');
+        $self->indent;
+        $self->_errif(400, q["Invalid argument name '$_'"],
+                      '!/\A(-?)\w+(\.\w+)*\z/o');
+        $self->_errif(400, q["Unknown argument '$_'"],
+                      '!($1 || $_ ~~ '.__squote([sort keys %$v]).')');
         $self->unindent;
         $self->push_lines('}');
     }
@@ -588,9 +595,11 @@ sub handle_args {
                 /\A(
                      summary|description|tags|default_lang|
                      schema|req|pos|greedy|
-                     completion|
+                     default|
+                     completion|element_completion|
                      cmdline_aliases|
                      cmdline_src|
+                     cmdline_on_getopt|
                      x
                  )(\..+)?\z/x;
         }
@@ -599,7 +608,8 @@ sub handle_args {
 
         my $sch = $argspec->{schema};
         if ($sch) {
-            my $has_default = ref($sch) eq 'ARRAY' &&
+            my $has_default_prop = exists($argspec->{default});
+            my $has_sch_default  = ref($sch) eq 'ARRAY' &&
                 exists($sch->[1]{default}) ? 1:0;
             if ($opt_va) {
                 my $dn = $argname; $dn =~ s/\W+/_/g;
@@ -607,7 +617,7 @@ sub handle_args {
                     data_name            => $dn,
                     data_term            => $argterm,
                     schema               => $sch,
-                    schema_is_normalized => !$ns,
+                    schema_is_normalized => !$opt_sin,
                     return_type          => 'str',
                     indent_level         => $self->get_indent_level + 4,
                 );
@@ -618,24 +628,21 @@ sub handle_args {
                 $self->indent;
                 $self->push_lines("my \$err_$dn;\n$cd->{result};");
                 $self->_errif(
-                    400, qq["Invalid value for argument '$an': \$err_$dn"],
+                    400, qq["Invalid value for argument '$argname': \$err_$dn"],
                     "\$err_$dn");
                 $self->unindent;
-                if ($has_default) {
-                    $self->push_lines(
-                        '} else {',
-                        "    $argterm //= ".__squote($sch->[1]{default}).";",
-                        '}');
-                } else {
-                    $self->push_lines('}');
-                }
-            } else {
                 $self->push_lines(
-                    "$argterm //= ".__squote($sch->[1]{default}).';')
-                    if $has_default;
+                    '} else {',
+                    "    $argterm //= ".__squote($argspec->{default}).";")
+                    if $has_default_prop;
+                $self->push_lines(
+                    '} else {',
+                    "    $argterm //= ".__squote($sch->[1]{default}).";")
+                    if $has_sch_default;
+                $self->push_lines('}');
             }
         }
-        if ($as->{req}) {
+        if ($argspec->{req}) {
             $self->_errif(
                 400, qq["Missing required argument: $argname"],
                 "!exists($argterm)");
@@ -682,10 +689,10 @@ sub handle_result {
 
     # validate result
     my @modules;
-    if ($v->{schema} && $vr) {
+    if ($v->{schema} && $opt_vr) {
         $ss{200} = $v->{schema};
     }
-    if ($v->{statuses} && $vr) {
+    if ($v->{statuses} && $opt_vr) {
         for my $s (keys %{$v->{statuses}}) {
             my $sv = $v->{statuses}{$s};
             if ($sv->{schema}) {
@@ -699,14 +706,14 @@ sub handle_result {
         $self->push_lines("my \$_w_res2 = \$_w_res->[2];");
         $self->push_lines("my \$_w_err2_res;");
 
-        for my $s (keys %ss) {
+        for my $s (sort keys %ss) {
             my $sch = $ss{$s};
             my $cd = $self->_plc->compile(
                 data_name            => '_w_res2',
                 # err_res can clash on arg named 'res'
                 err_term             => '$_w_err2_res',
                 schema               => $sch,
-                schema_is_normalized => $ns,
+                schema_is_normalized => $opt_sin,
                 return_type          => 'str',
                 indent_level         => $self->get_indent_level + 4,
             );
@@ -794,6 +801,13 @@ sub wrap {
 
     my ($self, %args) = @_;
 
+    my $sub      = $args{sub};
+    my $sub_name = $args{sub_name};
+    $sub || $sub_name or return [400, "Please specify sub or sub_name"];
+    $args{meta} or return [400, "Please specify meta"];
+    # we clone the meta because we'll replace stuffs
+    my $meta     = Data::Clone::clone($args{meta});
+
     # reset state/work data
     $self->{_cur_section}      = undef;
     $self->{_cur_handler}      = undef;
@@ -805,21 +819,6 @@ sub wrap {
     $self->{_meta}             = $meta; # the new metadata
     $self->{_modules} = []; # modules loaded by wrapper sub
 
-    my $sub      = $args{sub};
-    my $sub_name = $args{sub_name};
-    $sub || $sub_name or return [400, "Please specify sub or sub_name"];
-    $args{meta} or return [400, "Please specify meta"];
-    # we clone the meta because we'll replace stuffs
-    my $meta     = Data::Clone::clone($args{meta});
-
-}
-
-sub wrap {
-    require Data::Clone;
-    require Scalar::Util;
-
-    my ($self, %args) = @_;
-
     # temp vars
     my $opt_cvt = $args{replace};
     my $opt_rip = $args{_remove_internal_properties};
@@ -829,7 +828,7 @@ sub wrap {
     local $self->{_debug} = $args{debug} // 0;
 
     # add properties from convert, if not yet mentioned in meta
-    for (keys %$cvt) {
+    for (keys %$opt_cvt) {
         $meta->{$_} = undef unless exists $meta->{$_};
     }
 
@@ -976,6 +975,7 @@ sub wrap {
         # _needs_eval will automatically be enabled here, due after_eval being
         # filled
         $self->select_section('after_eval');
+        $self->push_lines('warn $_w_eval_err if $_w_eval_err;');
         $self->_errif(500, '"Function died: $_w_eval_err"', '$_w_eval_err');
     }
 
