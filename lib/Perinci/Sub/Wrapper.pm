@@ -24,19 +24,8 @@ our %SPEC;
 our $protocol_version = 2;
 
 sub new {
-    my ($class, %args) = @_;
-    $args{_compiled_package}           //= 'Perinci::Sub::Wrapped';
-    $args{indent}                      //= " " x 4;
-    $args{convert}                     //= {};
-    $args{compile}                     //= 1;
-    $args{validate_args}               //= 1;
-    $args{validate_result}             //= 1;
-
-    # internal attributes
-    $args{_schema_is_normalized}       //= 0;
-    $args{_remove_internal_properties} //= 1;
-
-    bless \%args, $class;
+    my ($class) = @_;
+    bless {}, $class;
 }
 
 sub __squote {
@@ -52,7 +41,11 @@ sub _add_module {
     unless ($mod ~~ $self->{_modules}) {
         local $self->{_cur_section};
         $self->select_section('before_sub_require_modules');
-        $self->push_lines("require $mod;");
+        if ($mod =~ /(.+?)\s+(.+)/) {
+            $self->push_lines("use $1 $2;");
+        } else {
+            $self->push_lines("require $mod;");
+        }
         push @{ $self->{_modules} }, $mod;
     }
 }
@@ -67,9 +60,26 @@ sub _add_var {
     }
 }
 
+sub line_modify_meta {
+    my ($self, $prop, $val) = @_;
+    return unless $self->{_args}{_embed};
+    $self->select_section('MODIFY_META');
+    if ($self->section_empty('MODIFY_META')) {
+        $self->push_lines('{',
+                          '    my $meta = $SPEC{'.
+                              __squote($self->{_args}{sub_name}).'};');
+    }
+    $self->push_lines('    $meta->{'.__squote($prop).'} = '.
+                          __squote($val).';');
+}
+
 sub _known_sections {
     state $val = {
-        before_sub_require_modules => {order=>0},
+        # for wrapper to modify function metadata, only generated when
+        # generating embeded code
+        MODIFY_META => {order=>0},
+
+        before_sub_require_modules => {order=>1},
 
         # reserved by wrapper for setting Perl package and declaring 'sub {'
         OPEN_SUB => {order=>1},
@@ -115,16 +125,15 @@ sub _known_sections {
 
         after_call_res_validation => {order=>62},
 
-        # reserved by wrapper to put eval end '}' and capturing $@ in $eval_err
+        # reserved by wrapper to put eval end '}' and capturing result in
+        # $_w_res and $@ in $eval_err
         CLOSE_EVAL => {order=>70},
 
         # for handlers to put checks against $eval_err
         after_eval => {order=>80},
 
-        # for handlers that want to do something with $res for the last time
-        before_return_res => {order=>85},
-
-        # reserved for returning '$_w_res' and the sub closing '}' line
+        # reserved for returning final result '$_w_res' and the sub closing '}'
+        # line
         CLOSE_SUB => {order=>90},
     };
     $val;
@@ -141,31 +150,34 @@ sub _needs_eval {
           $self->section_empty('after_eval'));
 }
 
+# whether we need to store call result to a variable
+sub _needs_store_res {
+    my ($self) = @_;
+    return 1 if $self->{_args}{validate_result};
+    return 1 if $self->_needs_eval;
+    my $ks = $self->_known_sections;
+    for (grep {/^after_call/} keys %$ks) {
+        return 1 unless $self->section_empty($_);
+    }
+    0;
+}
+
 sub _check_known_section {
     my ($self, $section) = @_;
     my $ks = $self->_known_sections;
     $ks->{$section} or die "BUG: Unknown code section '$section'";
 }
 
-sub _return_res {
-    my ($self) = @_;
-    if (!$self->{_avoid_postamble}) {
-        # normally we do this
-         'goto RETURN_RES;';
-    } else {
-        if ($self->{_meta}{result_naked}) {
-            'return $_wres->[2];';
-        } else {
-            'return $_wres;';
-        }
-    }
-}
-
 sub _err {
     my ($self, $c_status, $c_msg) = @_;
-    $self->push_lines(
-        '$_w_res = ' . "[$c_status, $c_msg]" . ';',
-        $self->_return_res);
+    if ($self->{_meta}{result_naked}) {
+        $self->push_lines(
+            "warn 'ERROR ' . ($c_status) . ': '. ($c_msg);",
+            'return undef;',
+        );
+    } else {
+        $self->push_lines("return [$c_status, $c_msg];");
+    }
 }
 
 sub _errif {
@@ -223,7 +235,7 @@ sub push_lines {
     }
 
     @lines = map {[$self->{_levels}{$section}, $_]} @lines;
-    if ($self->{_debug}) {
+    if ($self->{_args}{debug}) {
         for my $l (@lines) {
             $l->[2] =
                 $self->{_cur_handler} ?
@@ -247,9 +259,9 @@ sub _code_as_str {
         $i++;
         for my $l (@{ $self->{_codes}{$s} }) {
             $l->[0] += $prev_section_level;
-            die "BUG: Negative indent level in line $i: '$l'"
+            die "BUG: Negative indent level in line $i (section $s): '$l->[1]'"
                 if $l->[0] < 0;
-            my $s = ($self->{indent} x $l->[0]) . $l->[1];
+            my $s = ($self->{_args}{indent} x $l->[0]) . $l->[1];
             if (defined $l->[2]) {
                 my $num_ws = 80 - length($s);
                 $num_ws = 1 if $num_ws < 1;
@@ -270,6 +282,7 @@ sub handle_v {
     die "Cannot produce metadata other than v1.1 ($v)" unless $v == 1.1;
 
     return if $v == $args{value};
+    $self->line_modify_meta(v => $v);
     die "Cannot convert metadata other than from v1.0"
         unless $args{value} == 1.0;
 
@@ -562,18 +575,16 @@ sub handle_args {
     }
 
     if ($opt_va) {
+        $self->_add_module("experimental 'smartmatch'");
         $self->select_section('before_call_arg_validation');
         $self->push_lines('', '# check args');
-        $self->push_lines('for (keys %args) {');
+        $self->push_lines('for (sort keys %args) {');
         $self->indent;
         $self->_errif(400, q["Invalid argument name '$_'"],
                       '!/\A(-?)\w+(\.\w+)*\z/o');
         $self->_errif(
             400, q["Unknown argument '$_'"],
             '!($1 || $_ ~~ '.__squote([keys %$v]).')');
-
-        $self->push_lines('for (sort keys %args) {');
-        $self->indent;
         $self->_errif(400, q["Invalid argument name '$_'"],
                       '!/\A(-?)\w+(\.\w+)*\z/o');
         $self->_errif(400, q["Unknown argument '$_'"],
@@ -740,16 +751,22 @@ sub handle_result_naked {
     my $old = $args{value};
     my $v   = $args{new} // $old;
 
-    $self->select_section('before_return_res');
+    return if !!$v == !!$old;
+
+    $self->line_modify_meta(result_naked => $v ? 1:0);
+
+    $self->select_section('after_eval');
     if ($v) {
         $self->push_lines(
             '', '# strip result envelope',
             '$_w_res = $_w_res->[2];',
+            '',
         );
-    } elsif ($old && !$v) {
+    } else {
         $self->push_lines(
             '', '# add result envelope',
             '$_w_res = [200, "OK", $_w_res->[2]];',
+            '',
         );
     }
 }
@@ -769,23 +786,17 @@ sub handle_deps {
 
     # we handle some deps our own
     if ($value->{tmp_dir}) {
-        $self->push_lines(
-            'unless ($args{-tmp_dir}) { $_w_res = [412, "Dep failed: '.
-                'please specify -tmp_dir"]; '. $self->_return_res . ' }');
+        $self->_errif(412, '"Dep failed: please specify -tmp_dir"',
+                      '!$args{-tmp_dir}');
     }
     if ($value->{trash_dir}) {
-        $self->push_lines(
-            'unless ($args{-trash_dir}) { $_w_res = [412, "Dep failed: '.
-                'please specify -trash_dir"]; '. $self->_return_res .' }');
+        $self->_errif(412, '"Dep failed: please specify -trash_dir"',
+                      '!$args{-trash_dir}');
     }
     if ($value->{undo_trash_dir}) {
-        $self->push_lines(join(
-            '',
-            'unless ($args{-undo_trash_dir} || $args{-tx_manager} || ',
-            '$args{-undo_action} && $args{-undo_action}=~/\A(?:undo|redo)\z/) ',
-            '{ $_w_res = [412, "Dep failed: ',
-            'please specify -undo_trash_dir"]; '. $self->_return_res .' }'
-        ));
+        $self->_errif(412, '"Dep failed: please specify -undo_trash_dir"',
+                      '!($args{-undo_trash_dir} || $args{-tx_manager} || '.
+                          '$args{-undo_action} && $args{-undo_action}=~/\A(?:undo|redo)\z/)');
     }
 }
 
@@ -795,46 +806,64 @@ sub handle_x {}
 sub handlemeta_entity_v { {v=>2, prio=>99} }
 sub handle_entity_v {}
 
-sub wrap {
-    require Data::Clone;
-    require Scalar::Util;
-
+sub _reset_work_data {
     my ($self, %args) = @_;
 
-    my $sub      = $args{sub};
-    my $sub_name = $args{sub_name};
-    $sub || $sub_name or return [400, "Please specify sub or sub_name"];
-    $args{meta} or return [400, "Please specify meta"];
-    # we clone the meta because we'll replace stuffs
-    my $meta     = Data::Clone::clone($args{meta});
+    # to make it stand out more, all work/state data is prefixed with
+    # underscore.
 
-    # reset state/work data
     $self->{_cur_section}      = undef;
     $self->{_cur_handler}      = undef;
     $self->{_cur_handler_args} = undef;
     $self->{_cur_handler_meta} = undef;
     $self->{_levels}           = {};
     $self->{_codes}            = {};
-    $self->{_args}             = \%args;
-    $self->{_meta}             = $meta; # the new metadata
-    $self->{_modules} = []; # modules loaded by wrapper sub
+    $self->{_modules}          = []; # modules loaded by wrapper sub
+    $self->{_var_meta}         = undef;
+    $self->{$_} = $args{$_} for keys %args;
+}
 
-    # temp vars
-    my $opt_cvt = $args{replace};
+sub wrap {
+    require Data::Clone;
+    require Scalar::Util;
+
+    my ($self, %args) = @_;
+
+    # required arguments
+    my $sub      = $args{sub};
+    my $sub_name = $args{sub_name};
+    $sub || $sub_name or return [400, "Please specify sub or sub_name"];
+    $args{meta} or return [400, "Please specify meta"];
+
+    # defaults for arguments
+    $args{indent}                      //= " " x 4;
+    $args{convert}                     //= {};
+    $args{compile}                     //= 1;
+    $args{validate_args}               //= 1;
+    $args{validate_result}             //= 1;
+
+    # currently internal args, not exposed/documented
+    $args{_compiled_package}           //= 'Perinci::Sub::Wrapped';
+    $args{_schema_is_normalized}       //= 0;
+    $args{_remove_internal_properties} //= 1;
+    $args{_embed}                      //= 0;
+
+    # we clone the meta because we'll replace stuffs
+    my $meta     = Data::Clone::clone($args{meta});
+
+    # shallow copy
+    my $opt_cvt = { %{ $args{convert} } };
     my $opt_rip = $args{_remove_internal_properties};
+    my $comppkg  = $args{_compiled_package};
 
-    my $comppkg  = $self->{_compiled_package};
-
-    local $self->{_debug} = $args{debug} // 0;
+    $self->_reset_work_data(_args=>\%args, _meta=>$meta);
 
     # add properties from convert, if not yet mentioned in meta
     for (keys %$opt_cvt) {
         $meta->{$_} = undef unless exists $meta->{$_};
     }
 
-    $convert->{v} //= 1.1;
-
-    # clone some properties
+    $opt_cvt->{v} //= 1.1;
 
     $meta->{v} //= 1.0;
     return [412, "Unsupported metadata version ($meta->{v}), only 1.0 & 1.1 ".
@@ -856,15 +885,13 @@ sub wrap {
     # contains coderef and can't be dumped reliably, so we store it instead.
     my $metaname = $comppkg . "::meta".Scalar::Util::refaddr($meta);
     { no strict 'refs'; no warnings; ${$metaname} = $meta; }
+    use experimental 'smartmatch';
     $self->{_var_meta} = $metaname;
 
     $self->select_section('OPEN_SUB');
     $self->push_lines(
-        "package $comppkg;",
-        'sub {');
+        "package $comppkg;", 'sub {');
     $self->indent;
-    $self->push_lines(
-        'my ($_w_res, $_w_eval_err);');
 
     $meta->{args_as} //= "hash";
 
@@ -875,29 +902,29 @@ sub wrap {
     }
 
     my %props = map {$_=>1} keys %$meta;
-    $props{$_} = 1 for keys %$convert;
+    $props{$_} = 1 for keys %$opt_cvt;
 
     my %handler_args;
     my %handler_metas;
     for my $k0 (keys %props) {
         if ($k0 =~ /^_/) {
-            delete $meta->{$k0} if $rip;
+            delete $meta->{$k0} if $opt_rip;
             next;
         }
         my $k = $k0;
         $k =~ s/\..+//;
         next if $handler_args{$k};
-        if ($k ~~ $self->{_args}{skip}) {
-            $log->tracef("Skipped property %s (mentioned in skip)", $k);
-            next;
-        }
+        #if ($k ~~ $self->{_args}{skip}) {
+        #    $log->tracef("Skipped property %s (mentioned in skip)", $k);
+        #    next;
+        #}
         return [500, "Invalid property name $k"] unless $k =~ /\A\w+\z/;
         my $meth = "handlemeta_$k";
         unless ($self->can($meth)) {
             # try a property module first
             eval { require "Perinci/Sub/Property/$k.pm" };
             unless ($self->can($meth)) {
-                return [500, "Can't handle wrapping property $k0 ($meth)"];
+                return [500, "No handler for property $k0 ($meth)"];
             }
         }
         my $hm = $self->$meth;
@@ -910,19 +937,17 @@ sub wrap {
             prio=>$hm->{prio}, value=>$meta->{$k0}, property=>$k0,
             meth=>"handle_$k",
         };
-        if (exists $convert->{$k0}) {
+        if (exists $opt_cvt->{$k0}) {
             return [502, "Property '$k0' does not support conversion"]
                 unless $hm->{convert};
-            $ha->{new}   = $convert->{$k0};
-            $meta->{$k0} = $convert->{$k0};
+            $ha->{new}   = $opt_cvt->{$k0};
+            $meta->{$k0} = $opt_cvt->{$k0};
         }
         $handler_args{$k}  = $ha;
         $handler_metas{$k} = $hm;
     }
 
-    $self->select_section('before_return_res');
-    $self->push_lines('RETURN_RES:');
-
+    # call all the handlers in order
     for my $k (sort {$handler_args{$a}{prio} <=> $handler_args{$b}{prio}}
                    keys %handler_args) {
         my $ha = $handler_args{$k};
@@ -930,18 +955,21 @@ sub wrap {
         local $self->{_cur_handler}      = $meth;
         local $self->{_cur_handler_meta} = $handler_metas{$k};
         local $self->{_cur_handler_args} = $ha;
+        $log->trace();
         $self->$meth(args=>\%args, meta=>$meta, %$ha);
     }
 
+    my $needs_store_res = $self->_needs_store_res;
+    if ($needs_store_res) {
+        $self->_add_var('_w_res');
+    }
+
     $self->select_section('CALL');
-    $self->push_lines('$_w_res = ' . $sub_name . ($sub_name =~ /^\$/ ? "->" : "").
-                          "(".$self->{_args_token}.");");
-    if ($self->{_args}{meta}{result_naked}) {
-        # internally we always use result envelope, so let's envelope this
-        # temporarily.
-        $self->push_lines('# add temporary envelope',
-                          '$_w_res = [200, "OK", $_w_res];');
-    } elsif ($args{validate_result}) {
+    $self->push_lines(
+        ($needs_store_res ? '$_w_res = ' : "") .
+        $sub_name. ($sub_name =~ /^\$/ ? "->" : "").
+            "(".$self->{_args_token}.");");
+    if ($args{validate_result}) {
         $self->push_lines(
             '',
             '# check that sub produces enveloped result',
@@ -954,13 +982,12 @@ sub wrap {
                 'local $Data::Dumper::Purity   = 1;',
                 'local $Data::Dumper::Terse    = 1;',
                 'local $Data::Dumper::Indent   = 0;',
-                '$_w_res = [500, "BUG: Sub does not produce envelope: ".'.
-                    'Data::Dumper::Dumper($_w_res)];');
+            );
+            $self->_err(500, '"BUG: Sub does not produce envelope: ".'.
+                              'Data::Dumper::Dumper($_w_res)');
         } else {
-            $self->push_lines(
-                '$_w_res = [500, "BUG: Sub does not produce envelope"];');
+            $self->_err(500, '"BUG: Sub does not produce envelope"');
         }
-        $self->push_lines($self->_return_res);
         $self->unindent;
         $self->push_lines('}');
     }
@@ -971,29 +998,23 @@ sub wrap {
         $self->push_lines(
             '',
             '};',
-            '$_w_eval_err = $@;');
+            'my $_w_eval_err = $@;');
         # _needs_eval will automatically be enabled here, due after_eval being
         # filled
         $self->select_section('after_eval');
         $self->push_lines('warn $_w_eval_err if $_w_eval_err;');
         $self->_errif(500, '"Function died: $_w_eval_err"', '$_w_eval_err');
+
+        $self->select_section('OPEN_EVAL');
+        $self->push_lines('$_w_res = eval {');
+        $self->indent;
     }
 
     # return result
     $self->select_section('CLOSE_SUB');
-    $self->push_lines('return $_w_res;');
+    $self->push_lines('return $_w_res;') if $needs_store_res;
     $self->unindent;
-    $self->push_lines('}');
-
-    # hm, indent + unindent doesn't work properly here?
-    #$self->unindent;
-    #$self->push_lines('}');
-
-    if ($self->_needs_eval) {
-        $self->select_section('OPEN_EVAL');
-        $self->push_lines('eval {');
-        $self->indent;
-    }
+    $self->push_lines('} #sub');
 
     my $source = $self->_code_as_str;
     if ($Log_Wrapper_Code && $log->is_trace) {
@@ -1130,7 +1151,7 @@ sub wrap_sub {
 1;
 # ABSTRACT: A multi-purpose subroutine wrapping framework
 
-=for Pod::Coverage ^(new|handle(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|get_indent_level|select_section|push_lines)$
+=for Pod::Coverage ^(new|handle(meta)?_.+|line_modify_meta|wrap|add_.+|section_empty|indent|unindent|get_indent_level|select_section|push_lines)$
 
 =head1 SYNOPSIS
 
