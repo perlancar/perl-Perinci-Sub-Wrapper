@@ -42,6 +42,10 @@ Revision history for Perinci-Sub-Wrapper
            reduce the possibility of clash. The one exception is 'args'
            (%args/@args/$args).
 
+         - Wrapper code is more minimalistic when there are not much to do (e.g.
+           validate_args=>0, validate_result=>0), to reduce overhead and clutter
+           (especially when embed=>1).
+
 
 0.50     2014-01-03 (SHARYANTO)
 
