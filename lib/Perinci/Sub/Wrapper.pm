@@ -1280,21 +1280,22 @@ C<$Log_Wrapper_Code> if it is not already set.
 
 =head1 PERFORMANCE NOTES
 
-The following numbers are produced on an Asus Zenbook UX31 laptop (Intel Core i5
-1.7GHz) using Perinci::Sub::Wrapper v0.33 and Perl v5.14.2. Operating system is
-Ubuntu 11.10 (64bit).
+The following numbers are produced on an Intel Core i5-2400 3.1GHz desktop using
+Perinci::Sub::Wrapper v0.51 and Perl v5.18.2. Operating system is Debian sid
+(64bit).
 
 For perspective, empty subroutine (C<< sub {} >>) as well as C<< sub { [200,
-"OK"] } >> can be called around 4.3 mil/sec.
+"OK"] } >> can be called around 5.3 mil/sec.
 
 Wrapping this subroutine C<< sub { [200, "OK"] } >> and this simple metadata C<<
-{v=>1.1, args=>{a=>{schema=>"int"}}} >> using default options yields call
-performance for C<< $sub->() >> of about 0.28 mil/sec.
+{v=>1.1} >> using default options yields call performance for C<< $sub->() >> of
+about 0.9 mil/sec. With C<< validate_args=>0 >> and C<< validate_result=>0 >>,
+it's 1.5 mil/sec.
 
-As more arguments are introduced in the schema and passed, and as argument
-schemas become more complex, overhead will increase. The significant portion of
-the overhead is in argument validation.
-
+As more (and more complex) arguments are introduced and validated, overhead will
+increase. The significant portion of the overhead is in argument validation. For
+example, this metadata C<< {v=>1.1, args=>{a=>{schema=>"int"}}} >> yields 0.5
+mil/sec.
 
 =head1 FAQ
 
