@@ -251,10 +251,10 @@ sub push_lines {
 }
 
 sub _join_codes {
-    my ($self, $crit) = @_;
+    my ($self, $crit, $prev_section_level) = @_;
     my @lines;
     my $ks = $self->_known_sections;
-    my $prev_section_level = 0;
+    $prev_section_level //= 0;
     my $i = 0;
     for my $s (sort {$ks->{$a}{order} <=> $ks->{$b}{order}}
                    keys %$ks) {
@@ -275,7 +275,7 @@ sub _join_codes {
         }
         $prev_section_level += $self->{_levels}{$s};
     }
-    join "\n", @lines;
+    [join("\n", @lines), $prev_section_level];
 }
 
 sub _format_dyn_wrapper_code {
@@ -286,7 +286,7 @@ sub _format_dyn_wrapper_code {
             my %args = @_;
             my $section = $args{section};
             !$ks->{$section}{embed};
-        });
+        })->[0];
 }
 
 # for embedded, we need to produce three sections which will be inserted in
@@ -335,20 +335,25 @@ sub _format_embed_wrapper_code {
 
     my $res = {};
     my $ks = $self->_known_sections;
+    my $j;
 
-    $res->{part1} = $self->_join_codes(
+    $j = $self->_join_codes(
         sub {
             my %args = @_;
             my $section = $args{section};
             $section =~ /\A(before_sub_require_modules)\z/;
         });
-    $res->{part2} = $self->_join_codes(
+    $res->{part1} = $j->[0];
+
+    $j = $self->_join_codes(
         sub {
             my %args = @_;
             my $section = $args{section};
             $section =~ /\A(BEFORE_MODIFY_META|MODIFY_META)\z/;
         });
-    $res->{part3} = $self->_join_codes(
+    $res->{part2} = $j->[0];
+
+    $j = $self->_join_codes(
         sub {
             my %args = @_;
             my $section = $args{section};
@@ -356,8 +361,10 @@ sub _format_embed_wrapper_code {
             return 1 if $order > $ks->{ACCEPT_ARGS}{order} &&
                 $order < $ks->{CALL}{order};
             0;
-        });
-    $res->{part4} = $self->_join_codes(
+        }, 1);
+    $res->{part3} = $j->[0];
+
+    $j = $self->_join_codes(
         sub {
             my %args = @_;
             my $section = $args{section};
@@ -365,7 +372,9 @@ sub _format_embed_wrapper_code {
             return 1 if $order > $ks->{CALL}{order} &&
                 $order < $ks->{CLOSE_SUB}{order};
             0;
-        });
+        }, $j->[1]);
+    $res->{part4} = $j->[0];
+
     $res;
 }
 
@@ -682,6 +691,8 @@ sub handle_args {
     my $opt_sin = $self->{_args}{_schema_is_normalized};
     my $opt_va  = $self->{_args}{validate_args};
 
+    $self->select_section('MODIFY_META');
+
     # normalize schema
     unless ($opt_sin) {
         for my $an (keys %$v) {
@@ -689,6 +700,9 @@ sub handle_args {
             if ($as->{schema}) {
                 $as->{schema} =
                     $self->_sah->normalize_schema($as->{schema});
+                $self->push_lines(
+                    "\$meta->{args}{'$an'}{schema} = ".
+                        __squote($as->{schema}).';');
             }
             my $als = $as->{cmdline_aliases};
             if ($als) {
@@ -696,6 +710,9 @@ sub handle_args {
                     if ($als->{$al}{schema}) {
                         $als->{$al}{schema} =
                             $self->_sah->normalize_schema($als->{$al}{schema});
+                        $self->push_lines(
+                            "\$meta->{args}{'$an'}{cmdline_aliases}{'$al'}{schema} = ".
+                                __squote($als->{$al}{schema}).';');
                     }
                 }
             }
@@ -799,10 +816,15 @@ sub handle_result {
 
     my %ss; # key = status, value = schema
 
+    $self->select_section('MODIFY_META');
+
     # normalize schemas
     unless ($opt_sin) {
         if ($v->{schema}) {
             $v->{schema} = $self->_sah->normalize_schema($v->{schema});
+            $self->push_lines(
+                "\$meta->{result}{schema} = ".
+                    __squote($v->{schema}).';');
         }
         if ($v->{statuses}) {
             for my $s (keys %{$v->{statuses}}) {
@@ -810,6 +832,9 @@ sub handle_result {
                 if ($sv->{schema}) {
                     $sv->{schema} =
                         $self->_sah->normalize_schema($sv->{schema});
+                    $self->push_lines(
+                        "\$meta->{result}{statuses}{$s}{schema} = ".
+                            __squote($sv->{schema}).';');
                 }
             }
         }
