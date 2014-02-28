@@ -10,10 +10,6 @@ Revision history for Perinci-Sub-Wrapper
            to existing code. Most users need not use it directly; instead, use
            Dist::Zilla::Plugin::Rinci::Wrap instead.
 
-         [INCOMPATIBLE CHANGES]
-
-         - wrap_sub(): Require argument 'sub_name' instead of 'sub'.
-
          [REMOVED FEATURES]
 
          - Remove option: remove_internal_properties (becomes internal

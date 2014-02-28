@@ -898,7 +898,7 @@ sub handle_deps {
     my ($self, %args) = @_;
     my $value = $args{value};
     my $meta  = $self->{_meta};
-    my $v     = $self->{_meta_name};
+    my $v     = $self->{_args}{meta_name};
     $self->select_section('before_call_after_arg_validation');
     $self->push_lines('', '# check dependencies');
     $self->push_lines('require Perinci::Sub::DepChecker;');
@@ -943,7 +943,6 @@ sub _reset_work_data {
     $self->{_levels}           = {};
     $self->{_codes}            = {};
     $self->{_modules}          = []; # modules loaded by wrapper sub
-    $self->{_meta_name}        = undef;
     $self->{$_} = $args{$_} for keys %args;
 }
 
@@ -954,8 +953,20 @@ sub wrap {
     my ($self, %args) = @_;
 
     # required arguments
-    my $sub_name = $args{sub_name} or return [400, "Please specify sub_name"];
+    my $sub      = $args{sub};
+    my $sub_name = $args{sub_name};
+    $sub || $sub_name or return [400, "Please specify sub or sub_name"];
     $args{meta} or return [400, "Please specify meta"];
+    my $meta_name = $args{meta_name};
+    # we clone the meta because we'll replace stuffs
+    my $meta     = Data::Clone::clone($args{meta});
+
+    # currently internal args, not exposed/documented
+    $args{_compiled_package}           //= 'Perinci::Sub::Wrapped';
+    my $comppkg  = $args{_compiled_package};
+    $args{_schema_is_normalized}       //= 0;
+    $args{_remove_internal_properties} //= 1;
+    $args{_embed}                      //= 0;
 
     # defaults for arguments
     $args{indent}                      //= " " x 4;
@@ -963,20 +974,26 @@ sub wrap {
     $args{compile}                     //= 1;
     $args{validate_args}               //= 1;
     $args{validate_result}             //= 1;
-
-    # currently internal args, not exposed/documented
-    $args{_compiled_package}           //= 'Perinci::Sub::Wrapped';
-    $args{_schema_is_normalized}       //= 0;
-    $args{_remove_internal_properties} //= 1;
-    $args{_embed}                      //= 0;
-
-    # we clone the meta because we'll replace stuffs
-    my $meta     = Data::Clone::clone($args{meta});
+    # if sub_name is not provided, create a unique name for it. it is needed by
+    # the wrapper-generated code (e.g. printing error messages)
+    if (!$sub_name) {
+        my $n = $comppkg . "::sub".Scalar::Util::refaddr($sub);
+        no strict 'refs'; no warnings; ${$n} = $sub;
+        use experimental 'smartmatch';
+        $args{sub_name} = $sub_name = '$' . $n;
+    }
+    # if meta name is not provided, we store the meta somewhere, it is needed by
+    # the wrapper-generated code (e.g. deps clause).
+    if (!$meta_name) {
+        my $n = $comppkg . "::meta".Scalar::Util::refaddr($meta);
+        no strict 'refs'; no warnings; ${$n} = $meta;
+        use experimental 'smartmatch';
+        $args{meta_name} = $meta_name = '$' . $n;
+    }
 
     # shallow copy
     my $opt_cvt = { %{ $args{convert} } };
     my $opt_rip = $args{_remove_internal_properties};
-    my $comppkg  = $args{_compiled_package};
 
     $self->_reset_work_data(_args=>\%args, _meta=>$meta);
 
@@ -991,16 +1008,6 @@ sub wrap {
     return [412, "Unsupported metadata version ($meta->{v}), only 1.0 & 1.1 ".
                 "supported"]
         unless $meta->{v} == 1.1 || $meta->{v} == 1.0;
-
-    $self->{_meta_name} = $args{meta_name};
-    if (!$self->{_meta_name}) {
-        # meta name is not provided, so we store the meta somewhere, it is
-        # needed by the wrapped sub (e.g. deps clause).
-        my $n = $comppkg . "::meta".Scalar::Util::refaddr($meta);
-        no strict 'refs'; no warnings; ${$n} = $meta;
-        use experimental 'smartmatch';
-        $self->{_meta_name} = '$' . $n;
-    }
 
     $self->select_section('OPEN_SUB');
     $self->push_lines(
@@ -1135,8 +1142,7 @@ sub wrap {
         $self->select_section('BEFORE_MODIFY_META');
         $self->push_lines('{');
         $self->indent;
-        die "You must specify sub_name" unless $sub_name =~ /\A\w+\z/;
-        $self->push_lines('my $meta = $SPEC{'.__squote($sub_name).'};');
+        $self->push_lines('my $meta = '.$self->{_args}{meta_name}.';');
         $self->select_section('MODIFY_META');
         $self->unindent;
         $self->push_lines('} # modify meta');
@@ -1188,11 +1194,24 @@ _
         }}],
     },
     args => {
+        sub => {
+            schema => 'str*',
+            summary => 'The code to be wrapped',
+            description => <<'_',
+
+At least one of `sub` or `sub_name` must be specified.
+
+_
+        },
         sub_name => {
             schema => 'str*',
             summary => 'The name of the subroutine, '.
                 'e.g. func or Foo::func (qualified)',
-            req => 1,
+            description => <<'_',
+
+At least one of `sub` or `sub_name` must be specified.
+
+_
         },
         meta => {
             schema => 'hash*',
