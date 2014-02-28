@@ -1126,7 +1126,7 @@ _
 
 If set to true, will validate arguments. Validation error will cause status 400
 to be returned. This will only be done for arguments which has `schema` arg spec
-key. Will not be done if `args` property is skipped.
+key.
 
 _
         },
@@ -1137,8 +1137,7 @@ _
 
 If set to true, will validate sub's result. Validation error will cause wrapper
 to return status 500 instead of sub's result. This will only be done if `schema`
-or `statuses` keys are set in the `result` property. Will not be done if
-`result` property is skipped.
+or `statuses` keys are set in the `result` property.
 
 _
         },
@@ -1290,9 +1289,7 @@ For perspective, empty subroutine (C<< sub {} >>) as well as C<< sub { [200,
 
 Wrapping this subroutine C<< sub { [200, "OK"] } >> and this simple metadata C<<
 {v=>1.1, args=>{a=>{schema=>"int"}}} >> using default options yields call
-performance for C<< $sub->() >> of about 0.28 mil/sec. For C<< $sub->(a=>1) >>
-it is about 0.12 mil/sec. So if your sub needs to be called a million times a
-second, the wrapping adds too big of an overhead.
+performance for C<< $sub->() >> of about 0.28 mil/sec.
 
 As more arguments are introduced in the schema and passed, and as argument
 schemas become more complex, overhead will increase. The significant portion of
