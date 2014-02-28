@@ -62,29 +62,30 @@ sub _add_var {
 
 sub line_modify_meta {
     my ($self, $prop, $val) = @_;
-    return unless $self->{_args}{_embed};
     $self->select_section('MODIFY_META');
-    if ($self->section_empty('MODIFY_META')) {
-        $self->push_lines('{',
-                          '    my $meta = $SPEC{'.
-                              __squote($self->{_args}{sub_name}).'};');
-    }
-    $self->push_lines('    $meta->{'.__squote($prop).'} = '.
-                          __squote($val).';');
+    $self->push_lines('$meta->{'.__squote($prop).'} = '.__squote($val).';');
 }
 
 sub _known_sections {
-    state $val = {
-        # for wrapper to modify function metadata, only generated when
-        # generating embeded code
-        MODIFY_META => {order=>0},
+    # order=>N regulates the order of code. embed=>1 means the code is for embed
+    # mode only and should not be included in dynamic wrapper code.
 
+    state $val = {
         before_sub_require_modules => {order=>1},
 
-        # reserved by wrapper for setting Perl package and declaring 'sub {'
-        OPEN_SUB => {order=>1},
+        # for wrapper to modify function metadata, only generated when
+        # generating embeded code
+        BEFORE_MODIFY_META => {order=>2, embed=>1},
 
-        declare_vars => {order=>2},
+        MODIFY_META => {order=>3, embed=>1},
+
+        # reserved by wrapper for setting Perl package and declaring 'sub {'
+        OPEN_SUB => {order=>4},
+
+        # used by args_as handler to initialize %args from input data (@_)
+        ACCEPT_ARGS => {order=>5},
+
+        declare_vars => {order=>6},
 
         # for handlers to put stuffs right before eval. for example, 'timeout'
         # uses this to set ALRM signal handler.
@@ -97,9 +98,6 @@ sub _known_sections {
         # from data validation, argument conversion, etc. this is now
         # deprecated. see various before_call_* instead.
         before_call => {order=>30},
-
-        # used by args_as handler to initialize %args from input data (@_)
-        before_call_accept_args => {order=>31},
 
         # used e.g. to load modules used by validation
         before_call_before_arg_validation => {order=>32},
@@ -114,6 +112,9 @@ sub _known_sections {
 
         # reserved by the wrapper for calling the sub
         CALL => {order=>50},
+
+        # reserved by the wrapper for doing stuffs after call
+        AFTER_CALL => {order=>51},
 
         # for handlers to put various things after calling, from validating
         # result, enveloping result, etc. this is now deprecated. see various
@@ -132,9 +133,11 @@ sub _known_sections {
         # for handlers to put checks against $eval_err
         after_eval => {order=>80},
 
-        # reserved for returning final result '$_w_res' and the sub closing '}'
-        # line
-        CLOSE_SUB => {order=>90},
+        # reserved for returning final result '$_w_res'
+        BEFORE_CLOSE_SUB => {order=>99},
+
+        # reserved for sub closing '}' line
+        CLOSE_SUB => {order=>100},
     };
     $val;
 }
@@ -150,7 +153,7 @@ sub _needs_eval {
           $self->section_empty('after_eval'));
 }
 
-# whether we need to store call result to a variable
+# whether we need to store call result to a variable ($_w_res)
 sub _needs_store_res {
     my ($self) = @_;
     return 1 if $self->{_args}{validate_result};
@@ -247,15 +250,16 @@ sub push_lines {
     $self;
 }
 
-sub _code_as_str {
-    my ($self) = @_;
+sub _join_codes {
+    my ($self, $crit) = @_;
     my @lines;
-    my $ss = $self->_known_sections;
+    my $ks = $self->_known_sections;
     my $prev_section_level = 0;
     my $i = 0;
-    for my $s (sort {$ss->{$a}{order} <=> $ss->{$b}{order}}
-                   keys %$ss) {
+    for my $s (sort {$ks->{$a}{order} <=> $ks->{$b}{order}}
+                   keys %$ks) {
         next if $self->section_empty($s);
+        next unless $crit->(section => $s);
         $i++;
         for my $l (@{ $self->{_codes}{$s} }) {
             $l->[0] += $prev_section_level;
@@ -272,6 +276,97 @@ sub _code_as_str {
         $prev_section_level += $self->{_levels}{$s};
     }
     join "\n", @lines;
+}
+
+sub _format_dyn_wrapper_code {
+    my ($self) = @_;
+    my $ks = $self->_known_sections;
+    $self->_join_codes(
+        sub {
+            my %args = @_;
+            my $section = $args{section};
+            !$ks->{$section}{embed};
+        });
+}
+
+# for embedded, we need to produce three sections which will be inserted in
+# different places, demonstrated below:
+#
+#   $SPEC{foo} = {
+#       ...
+#   };
+#   sub foo {
+#       my %args = @_;
+#       # do stuffs
+#   }
+#
+# becomes:
+#
+#   #PART1: require modules (inserted before sub declaration)
+#   require Data::Dumper;
+#   require Scalar::Util;
+#
+#   $SPEC{foo} = {
+#       ...
+#   };
+#   #PART2: modify metadata piece-by-piece (inserted before sub declaration and
+#   #after $SPEC{foo}). we're avoiding dumping the new modified metadata because
+#   #metadata might contain coderefs which is sometimes problematic when dumping
+#   {
+#       my $meta = $SPEC{foo};
+#       $meta->{v} = 1.1;
+#       $meta->{result_naked} = 0;
+#   }
+#
+#   sub foo {
+#       my %args = @_;
+#       #PART3: before call sections (inserted after accept args), e.g.
+#       #validate arguments, convert argument type, setup eval block
+#       #...
+#
+#       # do stuffs
+#
+#       #PART4: after call sections (inserted before sub end), e.g.
+#       #validate result, close eval block and do retry/etc.
+#       #...
+#   }
+sub _format_embed_wrapper_code {
+    my ($self) = @_;
+
+    my $res = {};
+    my $ks = $self->_known_sections;
+
+    $res->{part1} = $self->_join_codes(
+        sub {
+            my %args = @_;
+            my $section = $args{section};
+            $section =~ /\A(before_sub_require_modules)\z/;
+        });
+    $res->{part2} = $self->_join_codes(
+        sub {
+            my %args = @_;
+            my $section = $args{section};
+            $section =~ /\A(BEFORE_MODIFY_META|MODIFY_META)\z/;
+        });
+    $res->{part3} = $self->_join_codes(
+        sub {
+            my %args = @_;
+            my $section = $args{section};
+            my $order = $ks->{$section}{order};
+            return 1 if $order > $ks->{ACCEPT_ARGS}{order} &&
+                $order < $ks->{CALL}{order};
+            0;
+        });
+    $res->{part4} = $self->_join_codes(
+        sub {
+            my %args = @_;
+            my $section = $args{section};
+            my $order = $ks->{$section}{order};
+            return 1 if $order > $ks->{CALL}{order} &&
+                $order < $ks->{CLOSE_SUB}{order};
+            0;
+        });
+    $res;
 }
 
 sub handlemeta_v { {v=>2, prio=>0.1, convert=>1} }
@@ -350,16 +445,32 @@ sub handle_default_lang {
     my ($self, %args) = @_;
 
     my $meta = $self->{_meta};
-    my @m = ($meta);
-    push @m, @{$meta->{links}} if $meta->{links};
-    push @m, @{$meta->{examples}} if $meta->{examples};
-    push @m, $meta->{result} if $meta->{result};
-    push @m, values %{$meta->{args}} if $meta->{args};
-    push @m, (grep {ref($_) eq 'HASH'} @{$meta->{tags}}) if $meta->{tags};
+    my @ee = ([$meta, '$meta']);
+    if ($meta->{links}) {
+        push @ee, map {[$meta->{links}[$_], '$meta->{links}'."[$_]"]}
+            0..@{$meta->{links}}-1;
+    }
+    if ($meta->{examples}) {
+        push @ee, map {[$meta->{examples}[$_], '$meta->{examples}'."[$_]"]}
+            0..@{$meta->{examples}}-1;
+    }
+    if ($meta->{result}) {
+        push @ee, [$meta->{result}, '$meta->{result}'];
+    }
+    if ($meta->{args}) {
+        push @ee, map {[$meta->{args}{$_}, '$meta->{args}'."{$_}"]}
+            keys %{$meta->{args}};
+    }
+    if ($meta->{tags}) {
+        push @ee, map {[$meta->{tags}[$_], '$meta->{tags}'."[$_]"]}
+            grep {ref($meta->{tags}[$_]) eq 'HASH'} 0..@{$meta->{tags}}-1;
+    }
 
     my $i = 0;
     my ($value, $new);
-    for my $m (@m) {
+    $self->select_section('MODIFY_META');
+    for my $e (@ee) {
+        my ($m, $mvar) = ($e->[0], $e->[1]);
         $i++;
         if ($i == 1) {
             $value = $args{value} // "en_US";
@@ -369,12 +480,27 @@ sub handle_default_lang {
         }
         return if $value eq $new && $i == 1;
         $m->{default_lang} = $new;
+        $self->push_lines("$mvar\->{default_lang} = '$new';");
         for my $prop (qw/summary description/) {
-            $m->{"$prop.alt.lang.$value"} //= $m->{$prop}
-                if defined $m->{$prop};
-            $m->{$prop} = $m->{"$prop.alt.lang.$new"};
-            delete $m->{$prop} unless defined $m->{$prop};
-            delete $m->{"$prop.alt.lang.$new"};
+            my $propo = "$prop.alt.lang.$value";
+            my $propn = "$prop.alt.lang.$new";
+            next unless defined($m->{$prop}) ||
+                defined($m->{$propo}) || defined($m->{$propn});
+            if (defined $m->{$prop}) {
+                $m->{$propo} //= $m->{$prop};
+                $self->push_lines("$mvar\->{'$propo'} //= $mvar\->{'$prop'};");
+            }
+            if (defined $m->{$propn}) {
+                $m->{$prop} = $m->{$propn};
+                $self->push_lines("$mvar\->{'$prop'} = $mvar\->{'$propn'};");
+            } else {
+                delete $m->{$prop};
+                $self->push_lines("delete $mvar\->{'$prop'};");
+            }
+            if (defined $m->{$propn}) {
+                delete $m->{$propn};
+                $self->push_lines("delete $mvar\->{'$propn'};","");
+            }
         }
     }
 }
@@ -466,14 +592,16 @@ sub handle_args_as {
     # they have to undergo a round-trip to hash even when both accept 'array').
     # This will be rectified in the future.
 
-    $self->select_section('before_call_accept_args');
+    $self->select_section('ACCEPT_ARGS');
 
     my $v = $new // $value;
+    $self->line_modify_meta(args_as => $v) if $v ne $value;
+
     $self->push_lines('', "# accept arguments ($v)");
     if ($v eq 'hash') {
          $self->push_lines('my %args = @_;');
     } elsif ($v eq 'hashref') {
-        $self->push_lines('my %args = %{$_[0]};');
+        $self->push_lines('my %args = %{$_[0] // {}};');
     } elsif ($v =~ /\Aarray(ref)?\z/) {
         my $ref = $1 ? 1:0;
         $self->push_lines('my %args;');
@@ -542,7 +670,7 @@ sub _plc {
     state $plc = $self->_sah->get_compiler("perl");
 }
 
-sub handlemeta_args { {v=>2, prio=>10, convert=>0} }
+sub handlemeta_args { {v=>2, prio=>10} }
 sub handle_args {
 
     my ($self, %args) = @_;
@@ -580,11 +708,6 @@ sub handle_args {
         $self->push_lines('', '# check args');
         $self->push_lines('for (sort keys %args) {');
         $self->indent;
-        $self->_errif(400, q["Invalid argument name '$_'"],
-                      '!/\A(-?)\w+(\.\w+)*\z/o');
-        $self->_errif(
-            400, q["Unknown argument '$_'"],
-            '!($1 || $_ ~~ '.__squote([keys %$v]).')');
         $self->_errif(400, q["Invalid argument name '$_'"],
                       '!/\A(-?)\w+(\.\w+)*\z/o');
         $self->_errif(400, q["Unknown argument '$_'"],
@@ -661,7 +784,7 @@ sub handle_args {
     }
 }
 
-sub handlemeta_result { {v=>2, prio=>50, convert=>0} }
+sub handlemeta_result { {v=>2, prio=>50} }
 sub handle_result {
     require Data::Sah;
 
@@ -752,7 +875,6 @@ sub handle_result_naked {
     my $v   = $args{new} // $old;
 
     return if !!$v == !!$old;
-
     $self->line_modify_meta(result_naked => $v ? 1:0);
 
     $self->select_section('after_eval');
@@ -776,11 +898,13 @@ sub handle_deps {
     my ($self, %args) = @_;
     my $value = $args{value};
     my $meta  = $self->{_meta};
-    my $v     = $self->{_var_meta};
+    my $v     = $self->{_meta_name};
     $self->select_section('before_call_after_arg_validation');
     $self->push_lines('', '# check dependencies');
     $self->push_lines('require Perinci::Sub::DepChecker;');
-    $self->push_lines('my $_w_deps_res = Perinci::Sub::DepChecker::check_deps($'.
+    #$self->push_lines('use Data::Dump; dd '.$v.';');
+    $self->push_lines('use Data::Dump; dd \%SPEC;');
+    $self->push_lines('my $_w_deps_res = Perinci::Sub::DepChecker::check_deps('.
                           $v.'->{deps});');
     $self->_errif(412, '"Deps failed: $_w_deps_res"', '$_w_deps_res');
 
@@ -819,7 +943,7 @@ sub _reset_work_data {
     $self->{_levels}           = {};
     $self->{_codes}            = {};
     $self->{_modules}          = []; # modules loaded by wrapper sub
-    $self->{_var_meta}         = undef;
+    $self->{_meta_name}        = undef;
     $self->{$_} = $args{$_} for keys %args;
 }
 
@@ -830,9 +954,7 @@ sub wrap {
     my ($self, %args) = @_;
 
     # required arguments
-    my $sub      = $args{sub};
-    my $sub_name = $args{sub_name};
-    $sub || $sub_name or return [400, "Please specify sub or sub_name"];
+    my $sub_name = $args{sub_name} or return [400, "Please specify sub_name"];
     $args{meta} or return [400, "Please specify meta"];
 
     # defaults for arguments
@@ -870,23 +992,15 @@ sub wrap {
                 "supported"]
         unless $meta->{v} == 1.1 || $meta->{v} == 1.0;
 
-    # if a coderef is supplied ($sub), put it in a named variable in $comppkg
-    # package, so it can be accessed by the wrapper code.
-    if (!$sub_name) {
-        $sub_name = $comppkg . "::sub".Scalar::Util::refaddr($sub);
-        no strict 'refs';
-        no warnings;
-        ${$sub_name} = $sub;
-        $sub_name = "\$$sub_name"; # make it a scalar
+    $self->{_meta_name} = $args{meta_name};
+    if (!$self->{_meta_name}) {
+        # meta name is not provided, so we store the meta somewhere, it is
+        # needed by the wrapped sub (e.g. deps clause).
+        my $n = $comppkg . "::meta".Scalar::Util::refaddr($meta);
+        no strict 'refs'; no warnings; ${$n} = $meta;
+        use experimental 'smartmatch';
+        $self->{_meta_name} = '$' . $n;
     }
-    use experimental 'smartmatch';
-
-    # also store the meta, it is needed by the wrapped sub. sometimes the meta
-    # contains coderef and can't be dumped reliably, so we store it instead.
-    my $metaname = $comppkg . "::meta".Scalar::Util::refaddr($meta);
-    { no strict 'refs'; no warnings; ${$metaname} = $meta; }
-    use experimental 'smartmatch';
-    $self->{_var_meta} = $metaname;
 
     $self->select_section('OPEN_SUB');
     $self->push_lines(
@@ -955,7 +1069,6 @@ sub wrap {
         local $self->{_cur_handler}      = $meth;
         local $self->{_cur_handler_meta} = $handler_metas{$k};
         local $self->{_cur_handler_args} = $ha;
-        $log->trace();
         $self->$meth(args=>\%args, meta=>$meta, %$ha);
     }
 
@@ -970,6 +1083,7 @@ sub wrap {
         $sub_name. ($sub_name =~ /^\$/ ? "->" : "").
             "(".$self->{_args_token}.");");
     if ($args{validate_result}) {
+        $self->select_section('AFTER_CALL');
         $self->push_lines(
             '',
             '# check that sub produces enveloped result',
@@ -994,9 +1108,9 @@ sub wrap {
 
     if ($self->_needs_eval) {
         $self->select_section('CLOSE_EVAL');
+        $self->push_lines('return $_w_res;');
         $self->unindent;
         $self->push_lines(
-            '',
             '};',
             'my $_w_eval_err = $@;');
         # _needs_eval will automatically be enabled here, due after_eval being
@@ -1006,31 +1120,49 @@ sub wrap {
         $self->_errif(500, '"Function died: $_w_eval_err"', '$_w_eval_err');
 
         $self->select_section('OPEN_EVAL');
-        $self->push_lines('$_w_res = eval {');
+        $self->push_lines('eval {');
         $self->indent;
     }
 
-    # return result
-    $self->select_section('CLOSE_SUB');
+    # return sub result
+    $self->select_section('BEFORE_CLOSE_SUB');
     $self->push_lines('return $_w_res;') if $needs_store_res;
+    $self->select_section('CLOSE_SUB');
     $self->unindent;
-    $self->push_lines('} #sub');
+    $self->push_lines('} # wrapper sub');
 
-    my $source = $self->_code_as_str;
-    if ($Log_Wrapper_Code && $log->is_trace) {
-        require SHARYANTO::String::Util;
-        $log->tracef("wrapper code:\n%s",
-                     $ENV{LINENUM} // 1 ?
-                         SHARYANTO::String::Util::linenum($source) :
-                               $source);
+    unless ($self->section_empty('MODIFY_META')) {
+        $self->select_section('BEFORE_MODIFY_META');
+        $self->push_lines('{');
+        $self->indent;
+        die "You must specify sub_name" unless $sub_name =~ /\A\w+\z/;
+        $self->push_lines('my $meta = $SPEC{'.__squote($sub_name).'};');
+        $self->select_section('MODIFY_META');
+        $self->unindent;
+        $self->push_lines('} # modify meta');
     }
-    my $result = {source=>$source, meta=>$meta};
-    if ($args{compile}) {
-        my $wrapped = eval $source;
-        die "BUG: Wrapper code can't be compiled: $@" if $@ || !$wrapped;
 
-        $result->{sub}  = $wrapped;
+    # return wrap result
+    my $result = {meta=>$meta};
+    if ($args{embed}) {
+        $result->{source} = $self->_format_embed_wrapper_code;
+    } else {
+        my $source = $self->_format_dyn_wrapper_code;
+        if ($Log_Wrapper_Code && $log->is_trace) {
+            require SHARYANTO::String::Util;
+            $log->tracef("wrapper code:\n%s",
+                         $ENV{LINENUM} // 1 ?
+                             SHARYANTO::String::Util::linenum($source) :
+                                   $source);
+        }
+        $result->{source} = $source;
+        if ($args{compile}) {
+            my $wrapped = eval $source;
+            die "BUG: Wrapper code can't be compiled: $@" if $@ || !$wrapped;
+            $result->{sub}  = $wrapped;
+        }
     }
+
     [200, "OK", $result];
 }
 
@@ -1051,40 +1183,32 @@ behavior. For example, if you set a different 'args_as' or 'result_naked' in
 _
         schema=>['hash*'=>{keys=>{
             sub=>'code*',
-            source=>'str*',
+            source=>['any*' => of => ['str*', ['hash*' => each_value=>'str*']]],
             meta=>'hash*',
         }}],
     },
     args => {
-        sub => {
-            schema => 'code*',
-            summary => 'The code to wrap',
-            description => <<'_',
-
-Either `sub` or `sub_name` must be supplied.
-
-If generated wrapper code is to be saved to disk or used by another process,
-then `sub_name` is required.
-
-_
-        },
         sub_name => {
             schema => 'str*',
-            summary => 'The fully qualified name of the subroutine, '.
-                'e.g. Foo::func',
-            description => <<'_',
-
-Either `sub` or `sub_name` must be supplied.
-
-If generated wrapper code is to be saved to disk or used by another process,
-then `sub_name` is required.
-
-_
+            summary => 'The name of the subroutine, '.
+                'e.g. func or Foo::func (qualified)',
+            req => 1,
         },
         meta => {
             schema => 'hash*',
             summary => 'The function metadata',
             req => 1,
+        },
+        meta_name => {
+            schema => 'str*',
+            summary => 'Where to find the metadata, e.g. "$SPEC{foo}"',
+            description => <<'_',
+
+Some wrapper code (e.g. handler for `dep` property) needs to refer to the
+function metadata. If not provided, the wrapper will store the function metadata
+in a unique variable (e.g. `$Perinci::Sub::Wrapped::meta34127816`).
+
+_
         },
         convert => {
             schema => 'hash*',
@@ -1157,7 +1281,7 @@ sub wrap_sub {
 For dynamic usage:
 
  use Perinci::Sub::Wrapper qw(wrap_sub);
- my $res = wrap_sub(sub => sub {die "test\n"}, meta=>{...});
+ my $res = wrap_sub(sub_name => "mysub", meta=>{...});
  my ($wrapped_sub, $meta) = ($res->[2]{sub}, $res->[2]{meta});
  $wrapped_sub->(); # call the wrapped function
 
