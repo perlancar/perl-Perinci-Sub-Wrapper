@@ -67,6 +67,7 @@ sub line_modify_meta {
 }
 
 sub _known_sections {
+
     # order=>N regulates the order of code. embed=>1 means the code is for embed
     # mode only and should not be included in dynamic wrapper code.
 
@@ -681,7 +682,6 @@ sub _plc {
 
 sub handlemeta_args { {v=>2, prio=>10} }
 sub handle_args {
-
     my ($self, %args) = @_;
 
     my $v = $self->{_meta}{args};
@@ -1174,7 +1174,7 @@ sub wrap {
     }
 
     # return wrap result
-    my $result = {meta=>$meta};
+    my $result = {sub_name=>$sub_name, meta=>$meta, meta_name=>$meta_name};
     if ($args{embed}) {
         $result->{source} = $self->_format_embed_wrapper_code;
     } else {
@@ -1449,8 +1449,7 @@ C<$Log_Wrapper_Code> if it is not already set.
 =head1 PERFORMANCE NOTES
 
 The following numbers are produced on an Intel Core i5-2400 3.1GHz desktop using
-Perinci::Sub::Wrapper v0.51 and Perl v5.18.2. Operating system is Debian sid
-(64bit).
+PSW v0.51 and Perl v5.18.2. Operating system is Debian sid (64bit).
 
 For perspective, empty subroutine (C<< sub {} >>) as well as C<< sub { [200,
 "OK"] } >> can be called around 5.3 mil/sec.
