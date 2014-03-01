@@ -860,6 +860,7 @@ sub handle_result {
         }
     }
 
+    my $sub_name = $self->{_args}{sub_name};
     if (keys %ss) {
         $self->select_section('after_call_res_validation');
         $self->push_lines("my \$_w_res2 = \$_w_res->[2];");
@@ -883,7 +884,8 @@ sub handle_result {
             $self->indent;
             $self->push_lines("$cd->{result};");
             $self->_errif(
-                500, qq["BUG: Sub produces invalid result (status=$s): ].
+                500,
+                qq["BUG: Sub $sub_name produces invalid result (status=$s): ].
                     qq[\$_w_err2_res"],
                 "\$_w_err2_res");
             $self->unindent;
@@ -977,6 +979,8 @@ sub wrap {
 
     my ($self, %args) = @_;
 
+    my $wrap_log_prop = "x.perinci.sub.wrapper.log";
+
     # required arguments
     my $sub      = $args{sub};
     my $sub_name = $args{sub_name};
@@ -985,6 +989,7 @@ sub wrap {
     my $meta_name = $args{meta_name};
     # we clone the meta because we'll replace stuffs
     my $meta     = Data::Clone::clone($args{meta});
+    my $wrap_logs = $meta->{$wrap_log_prop} // [];
 
     # currently internal args, not exposed/documented
     $args{_compiled_package}           //= 'Perinci::Sub::Wrapped';
@@ -997,8 +1002,15 @@ sub wrap {
     $args{indent}                      //= " " x 4;
     $args{convert}                     //= {};
     $args{compile}                     //= 1;
-    $args{validate_args}               //= 1;
-    $args{validate_result}             //= 1;
+    $args{validate_args}               //=
+        # by default do not validate args again if previous wrapper(s) have
+        # already done it
+        !(grep {$_->{validate_args}} @$wrap_logs);
+    $args{validate_result}             //=
+        # by default do not validate result again if previous wrapper(s) have
+        # already done it
+        !(grep {$_->{validate_result}} @$wrap_logs);
+
     # if sub_name is not provided, create a unique name for it. it is needed by
     # the wrapper-generated code (e.g. printing error messages)
     if (!$sub_name) {
@@ -1027,8 +1039,21 @@ sub wrap {
         $meta->{$_} = undef unless exists $meta->{$_};
     }
 
-    $opt_cvt->{v} //= 1.1;
+    # mark in the metadata that we have done the wrapping, so future wrapping
+    # can avoid needless duplicated functionality (like validating args twice).
+    # note that handler can log their mark too.
+    {
+        my @wrap_log = @{ $meta->{$wrap_log_prop} // [] };
+        push @wrap_log, {
+            validate_args   => $args{validate_args},
+            validate_result => $args{validate_result},
+        };
+        $meta->{$wrap_log_prop} = \@wrap_log;
+    }
 
+    # start iterating over properties
+
+    $opt_cvt->{v} //= 1.1;
     $meta->{v} //= 1.0;
     return [412, "Unsupported metadata version ($meta->{v}), only 1.0 & 1.1 ".
                 "supported"]
@@ -1050,6 +1075,7 @@ sub wrap {
     my %props = map {$_=>1} keys %$meta;
     $props{$_} = 1 for keys %$opt_cvt;
 
+    # collect and check handlers
     my %handler_args;
     my %handler_metas;
     for my $k0 (keys %props) {
@@ -1129,10 +1155,12 @@ sub wrap {
                 'local $Data::Dumper::Terse    = 1;',
                 'local $Data::Dumper::Indent   = 0;',
             );
-            $self->_err(500, '"BUG: Sub does not produce envelope: ".'.
-                              'Data::Dumper::Dumper($_w_res)');
+            $self->_err(500,
+                        qq["BUG: Sub $sub_name does not produce envelope: ".].
+                            qq[Data::Dumper::Dumper(\$_w_res)]);
         } else {
-            $self->_err(500, '"BUG: Sub does not produce envelope"');
+            $self->_err(500,
+                        qq["BUG: Sub $sub_name does not produce envelope"]);
         }
         $self->unindent;
         $self->push_lines('}');
@@ -1205,11 +1233,15 @@ $SPEC{wrap_sub} = {
         summary => 'The wrapped subroutine along with its new metadata',
         description => <<'_',
 
-Aside from wrapping the subroutine, will also create a new metadata for it. The
-new metadata is a shallow copy of the original, with most properties usually
-untouched. Only certain properties will be changed to match the new subroutine
-behavior. For example, if you set a different 'args_as' or 'result_naked' in
-'convert', then the new metadata will carry the new values.
+Aside from wrapping the subroutine, the wrapper will also create a new metadata
+for the subroutine. The new metadata is a clone of the original, with some
+properties changed, e.g. schema in `args` and `result` normalized, some values
+changed according to the `convert` argument, some defaults set, etc.
+
+The new metadata will also contain (or append) the wrapping log located in the
+`x.perinci.sub.wrapper.log` attribute. The wrapping log marks that the wrapper
+has added some functionality (like validating arguments or result) so that
+future nested wrapper can choose to avoid duplicating the same functionality.
 
 _
         schema=>['hash*'=>{keys=>{
@@ -1288,24 +1320,24 @@ what this does:
 _
         },
         validate_args => {
-            schema => [bool => default=>1],
+            schema => ['bool'],
             summary => 'Whether wrapper should validate arguments',
             description => <<'_',
 
 If set to true, will validate arguments. Validation error will cause status 400
-to be returned. This will only be done for arguments which has `schema` arg spec
-key.
+to be returned. The default is to enable this unless previous wrapper(s) have
+already done this.
 
 _
         },
         validate_result => {
-            schema => [bool => default=>1],
+            schema => ['bool'],
             summary => 'Whether wrapper should validate arguments',
             description => <<'_',
 
 If set to true, will validate sub's result. Validation error will cause wrapper
-to return status 500 instead of sub's result. This will only be done if `schema`
-or `statuses` keys are set in the `result` property.
+to return status 500 instead of sub's result. The default is to enable this
+unless previous wrapper(s) have already done this.
 
 _
         },
