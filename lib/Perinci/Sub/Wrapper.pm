@@ -623,9 +623,17 @@ sub handle_args_as {
             $pos >= 0 or die "Error in args property for arg '$a': ".
                 "negative value in pos";
             if ($as->{greedy}) {
-                $line .= '[splice '.($ref ? '@{$_[0]}' : '@_').", $pos]";
+                if ($ref) {
+                    $line .= '[splice @{$_[0]}, '.$pos.'] if @{$_[0]} > '.$pos;
+                } else {
+                    $line .= '[splice @_, '.$pos.'] if @_ > '.$pos;
+                }
             } else {
-                $line .= $ref ? '$_[0]['.$pos.']' : '$_['.$pos.']';
+                if ($ref) {
+                    $line .= '$_[0]['.$pos.'] if @{$_[0]} > '.$pos;
+                } else {
+                    $line .= '$_['.$pos.'] if @_ > '.$pos;
+                }
             }
             $self->push_lines("$line;");
         }
@@ -782,14 +790,15 @@ sub handle_args {
                     400, qq["Invalid value for argument '$argname': \$err_$dn"],
                     "\$err_$dn");
                 $self->unindent;
-                $self->push_lines(
-                    '} else {',
-                    "    $argterm //= ".__squote($argspec->{default}).";")
-                    if $has_default_prop;
-                $self->push_lines(
-                    '} else {',
-                    "    $argterm //= ".__squote($sch->[1]{default}).";")
-                    if $has_sch_default;
+                if ($has_default_prop) {
+                    $self->push_lines(
+                        '} else {',
+                        "    $argterm //= ".__squote($argspec->{default}).";");
+                } elsif ($has_sch_default) {
+                    $self->push_lines(
+                        '} else {',
+                        "    $argterm //= ".__squote($sch->[1]{default}).";");
+                }
                 $self->push_lines('}');
             }
         }
@@ -994,7 +1003,8 @@ sub wrap {
     # currently internal args, not exposed/documented
     $args{_compiled_package}           //= 'Perinci::Sub::Wrapped';
     my $comppkg  = $args{_compiled_package};
-    $args{_schema_is_normalized}       //= 0;
+    $args{_schema_is_normalized}       //=
+        $wrap_logs->[-1] && $wrap_logs->[-1]{normalize_schema} ? 1 : 0;
     $args{_remove_internal_properties} //= 1;
     $args{_embed}                      //= 0;
 
@@ -1031,6 +1041,7 @@ sub wrap {
     # shallow copy
     my $opt_cvt = { %{ $args{convert} } };
     my $opt_rip = $args{_remove_internal_properties};
+    my $opt_sin = $args{_schema_is_normalized};
 
     $self->_reset_work_data(_args=>\%args, _meta=>$meta);
 
@@ -1045,8 +1056,9 @@ sub wrap {
     {
         my @wrap_log = @{ $meta->{$wrap_log_prop} // [] };
         push @wrap_log, {
-            validate_args   => $args{validate_args},
-            validate_result => $args{validate_result},
+            validate_args     => $args{validate_args},
+            validate_result   => $args{validate_result},
+            normalize_schema  => !$opt_sin,
         };
         $meta->{$wrap_log_prop} = \@wrap_log;
     }

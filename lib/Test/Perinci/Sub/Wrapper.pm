@@ -76,6 +76,8 @@ sub test_wrap {
                     diag "eval source: ", $eval_src;
                     return;
                 };
+                diag "eval source: ", $eval_src
+                    if $ENV{LOG_PERINCI_WRAPPER_CODE};
             } else {
                 $sub = $wrap_res->[2]{sub};
             }

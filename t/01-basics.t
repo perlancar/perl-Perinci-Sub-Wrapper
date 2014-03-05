@@ -4,11 +4,10 @@ use 5.010;
 use strict;
 use warnings;
 
-use Test::More 0.96;
-
 use List::Util qw(sum);
-use Test::Perinci::Sub::Wrapper qw(test_wrap);
 use Scalar::Util qw(blessed);
+use Test::More 0.98;
+use Test::Perinci::Sub::Wrapper qw(test_wrap);
 
 my ($sub, $meta);
 
@@ -21,9 +20,8 @@ $meta = {
     },
     result=>'int',
 };
-# XXX test arg_completion conversion
 test_wrap(
-    name => 'meta version == 1.0 -> converted to 1.1',
+    name => 'convert v',
     wrap_args => {sub => $sub, meta => $meta},
     wrap_status => 200,
     posttest => sub {
@@ -35,64 +33,61 @@ test_wrap(
                        pos=>0, greedy=>1, cmdline_aliases=>{a1=>{}}},
                    b=>{schema=>[int=>{}, {}]}}, 'args')
             or diag explain $newmeta->{args};
+        # XXX test arg_completion conversion
         is_deeply($newmeta->{result},
                   {schema=>[int=>{}, {}]}, 'result')
             or diag explain $newmeta->{result};
-
-
     },
 );
 
 $meta = {v=>1.1};
 test_wrap(
-    name => 'unsupported conversion -> fail',
+    name => 'convert unsupported property -> fail',
     wrap_args => {sub => $sub, meta => $meta, convert=>{deps=>{}}},
     wrap_status => 502,
 );
 
-# test wrap arg 'trap' + wrapping 'args_as' property, also test
-# normalizing schemas
+subtest 'args_as=array, normalize schemas' => sub {
+    $sub = sub { [200, "OK", $_[0]/$_[1]] };
+    $meta = {v=>1.1, args_as=>"array",
+             args=>{a=>{pos=>0, schema=>"int"},
+                    b=>{pos=>1, cmdline_aliases=>{B=>{schema=>'bool'}}}}};
+    test_wrap(
+        name => "call doesn't die",
+        wrap_args => {sub => $sub, meta => $meta},
+        wrap_status => 200,
+        call_argsr => [12, 3],
+        call_res => [200, "OK", 4],
+        posttest => sub {
+            my ($wrap_res, $call_res) = @_;
+            my $newmeta = $wrap_res->[2]{meta};
+            is_deeply($newmeta->{args}{a}{schema}, [int=>{}, {}],
+                      "schemas by default are normalized (a)");
+            is_deeply($newmeta->{args}{b}{cmdline_aliases}{B}{schema},[bool=>{},{}],
+                      "schemas in cmdline_aliases by default are normalized (b)");
+        },
+    );
+    test_wrap(
+        name => 'call dies',
+        wrap_args => {sub => $sub, meta => $meta, _schema_is_normalized=>1},
+        wrap_status => 200,
+        call_argsr => [12, 0],
+        call_status => 500,
+        posttest => sub {
+            my ($wrap_res, $call_res) = @_;
+            my $newmeta = $wrap_res->[2]{meta};
+            is_deeply($newmeta->{args}{a}{schema}, "int",
+                      "schemas are not normalize when normalized_schemas=0 (a)")
+                or diag explain $newmeta;
+        },
+    );
+};
 
-$sub = sub { [200, "OK", $_[0]/$_[1]] };
-$meta = {v=>1.1, args_as=>"array",
-         args=>{a=>{pos=>0, schema=>"int"},
-                b=>{pos=>1, cmdline_aliases=>{B=>{schema=>'bool'}}}}};
-test_wrap(
-    name => '(trap=1, default) call doesn\'t die',
-    wrap_args => {sub => $sub, meta => $meta},
-    wrap_status => 200,
-    call_argsr => [12, 3],
-    call_res => [200, "OK", 4],
-    posttest => sub {
-        my ($wrap_res, $call_res) = @_;
-        my $newmeta = $wrap_res->[2]{meta};
-        is_deeply($newmeta->{args}{a}{schema}, [int=>{}, {}],
-                  "schemas by default are normalized (a)");
-        is_deeply($newmeta->{args}{b}{cmdline_aliases}{B}{schema},[bool=>{},{}],
-                  "schemas in cmdline_aliases by default are normalized (b)");
-    },
-);
-test_wrap(
-    name => '(trap=1, default) call dies -> 500',
-    wrap_args => {sub => $sub, meta => $meta, normalize_schemas=>0},
-    wrap_status => 200,
-    call_argsr => [12, 0],
-    call_status => 500,
-    posttest => sub {
-        my ($wrap_res, $call_res) = @_;
-        my $newmeta = $wrap_res->[2]{meta};
-        is_deeply($newmeta->{args}{a}{schema}, "int",
-                  "schemas are not normalize when normalized_schemas=0 (a)")
-            or diag explain $newmeta;
-    },
-);
-test_wrap(
-    name => '(trap=0) call dies -> dies',
-    wrap_args => {sub => $sub, meta => $meta, trap=>0},
-    wrap_status => 200,
-    call_argsr => [12, 0],
-    call_dies => 1,
-);
+goto DONE_TESTING;
+
+
+
+
 test_wrap(
     name => '(result_naked=0) convert result_naked to 1',
     wrap_args => {sub => $sub, meta => $meta, convert=>{result_naked=>1}},
@@ -392,5 +387,4 @@ test_wrap(
 );
 
 DONE_TESTING:
-done_testing();
-
+done_testing;
