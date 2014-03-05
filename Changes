@@ -1,8 +1,11 @@
 Revision history for Perinci-Sub-Wrapper
 
-0.51     2014-02-26 (SHARYANTO) (not yet released)
+0.51     2014-03-05 (SHARYANTO) (not yet released)
 
-         - This release removes some features to make the module simpler.
+         - This release removes some features to make the module simpler and has
+           less overhead for simpler cases. The wrapper is now also able to
+           generate code appropriate for embedding directly into source code
+           during build (see Dist::Zilla::Plugin::Rinci::Wrap for more details).
 
          [NEW FEATURES]
 
