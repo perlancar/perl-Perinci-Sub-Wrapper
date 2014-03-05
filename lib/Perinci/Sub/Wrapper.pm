@@ -83,10 +83,13 @@ sub _known_sections {
         # reserved by wrapper for setting Perl package and declaring 'sub {'
         OPEN_SUB => {order=>4},
 
-        # used by args_as handler to initialize %args from input data (@_)
+        # reserved to say 'my %args = @_;' or 'my @args = @_;' etc
         ACCEPT_ARGS => {order=>5},
 
-        declare_vars => {order=>6},
+        # reserved to get args values if converted from array/arrayref
+        ACCEPT_ARGS2 => {order=>6},
+
+        declare_vars => {order=>7},
 
         # for handlers to put stuffs right before eval. for example, 'timeout'
         # uses this to set ALRM signal handler.
@@ -303,14 +306,14 @@ sub _format_dyn_wrapper_code {
 #
 # becomes:
 #
-#   #PART1: require modules (inserted before sub declaration)
+#   #PRESUB1: require modules (inserted before sub declaration)
 #   require Data::Dumper;
 #   require Scalar::Util;
 #
 #   $SPEC{foo} = {
 #       ...
 #   };
-#   #PART2: modify metadata piece-by-piece (inserted before sub declaration and
+#   #PRESUB2: modify metadata piece-by-piece (inserted before sub declaration &
 #   #after $SPEC{foo}). we're avoiding dumping the new modified metadata because
 #   #metadata might contain coderefs which is sometimes problematic when dumping
 #   {
@@ -321,13 +324,13 @@ sub _format_dyn_wrapper_code {
 #
 #   sub foo {
 #       my %args = @_;
-#       #PART3: before call sections (inserted after accept args), e.g.
+#       #PREAMBLE: before call sections (inserted after accept args), e.g.
 #       #validate arguments, convert argument type, setup eval block
 #       #...
 #
 #       # do stuffs
 #
-#       #PART4: after call sections (inserted before sub end), e.g.
+#       #POSTAMBLE: after call sections (inserted before sub end), e.g.
 #       #validate result, close eval block and do retry/etc.
 #       #...
 #   }
@@ -344,7 +347,7 @@ sub _format_embed_wrapper_code {
             my $section = $args{section};
             $section =~ /\A(before_sub_require_modules)\z/;
         });
-    $res->{part1} = $j->[0];
+    $res->{presub1} = $j->[0];
 
     $j = $self->_join_codes(
         sub {
@@ -352,7 +355,7 @@ sub _format_embed_wrapper_code {
             my $section = $args{section};
             $section =~ /\A(BEFORE_MODIFY_META|MODIFY_META)\z/;
         });
-    $res->{part2} = $j->[0];
+    $res->{presub2} = $j->[0];
 
     $j = $self->_join_codes(
         sub {
@@ -363,7 +366,7 @@ sub _format_embed_wrapper_code {
                 $order < $ks->{CALL}{order};
             0;
         }, 1);
-    $res->{part3} = $j->[0];
+    $res->{preamble} = $j->[0];
 
     $j = $self->_join_codes(
         sub {
@@ -374,7 +377,7 @@ sub _format_embed_wrapper_code {
                 $order < $ks->{CLOSE_SUB}{order};
             0;
         }, $j->[1]);
-    $res->{part4} = $j->[0];
+    $res->{postamble} = $j->[0];
 
     $res;
 }
@@ -490,7 +493,7 @@ sub handle_default_lang {
         }
         return if $value eq $new && $i == 1;
         $m->{default_lang} = $new;
-        $self->push_lines("$mvar\->{default_lang} = '$new';");
+        $self->push_lines('', "$mvar\->{default_lang} = '$new';");
         for my $prop (qw/summary description/) {
             my $propo = "$prop.alt.lang.$value";
             my $propn = "$prop.alt.lang.$new";
@@ -585,6 +588,7 @@ sub handle_args_as {
     my $new    = $args{new};
     my $meta   = $self->{_meta};
     my $args_p = $meta->{args} // {};
+    my $opt_va = $self->{_args}{validate_args};
 
     # We support conversion of arguments between hash/hashref/array/arrayref. To
     # make it simple, currently the algorithm is as follow: we first form the
@@ -602,20 +606,28 @@ sub handle_args_as {
     # they have to undergo a round-trip to hash even when both accept 'array').
     # This will be rectified in the future.
 
-    $self->select_section('ACCEPT_ARGS');
-
     my $v = $new // $value;
     $self->line_modify_meta(args_as => $v) if $v ne $value;
 
-    $self->push_lines('', "# accept arguments ($v)");
+    $self->select_section('ACCEPT_ARGS');
     if ($v eq 'hash') {
+         $self->push_lines(q{die 'BUG: Odd number of hash elements supplied' if @_ % 2;})
+             if $opt_va;
          $self->push_lines('my %args = @_;');
     } elsif ($v eq 'hashref') {
+        $self->push_lines(q{die 'BUG: $_[0] needs to be hashref' if @_ && ref($_[0]) ne "HASH";})
+            if $opt_va;
         $self->push_lines('my %args = %{$_[0] // {}};');
     } elsif ($v =~ /\Aarray(ref)?\z/) {
         my $ref = $1 ? 1:0;
+        if ($ref) {
+            $self->push_lines(q{die 'BUG: $_[0] needs to be arrayref' if @_ && ref($_[0]) ne "ARRAY";})
+                if $opt_va;
+        }
         $self->push_lines('my %args;');
-        while (my ($a, $as) = each %$args_p) {
+        $self->select_section('ACCEPT_ARGS2');
+        for my $a (sort keys %$args_p) {
+            my $as = $args_p->{$a};
             my $line = '$args{'.__squote($a).'} = ';
             defined($as->{pos}) or die "Error in args property for arg '$a': ".
                 "no pos defined";
@@ -641,16 +653,26 @@ sub handle_args_as {
         die "Unknown args_as value '$v'";
     }
 
+    $self->select_section('ACCEPT_ARGS');
+    if ($value eq 'hashref') {
+        $self->push_lines('my $args;');
+    } elsif ($value eq 'array') {
+        $self->push_lines('my @args;');
+    } elsif ($value eq 'arrayref') {
+        $self->push_lines('my $args;');
+    }
+
     my $tok;
     $self->select_section('before_call_feed_args');
     $v = $value;
     if ($v eq 'hash') {
         $tok = '%args';
     } elsif ($v eq 'hashref') {
-        $tok = '\%args';
+        $tok = '$args';
+        $self->push_lines($tok.' = \%args;'); # XXX should we set each arg instead?
     } elsif ($v =~ /\Aarray(ref)?\z/) {
         my $ref = $1 ? 1:0;
-        $self->push_lines('my @args;');
+        $tok = ($ref ? '$':'@') . 'args';
         for my $a (sort {$args_p->{$a}{pos} <=> $args_p->{$b}{pos}}
                        keys %$args_p) {
             my $as = $args_p->{$a};
@@ -664,11 +686,10 @@ sub handle_args_as {
             if ($as->{greedy}) {
                 $line = 'splice @args, '.$pos.', scalar(@args)-1, @{'.$t.'}';
             } else {
-                $line = '$args['.$pos."] = $t";
+                $line = '$args'.($ref ? '->':'').'['.$pos."] = $t if exists $t";
             }
             $self->push_lines("$line;");
         }
-        $tok = $ref ? '\@args' : '@args';
     } else {
         die "Unknown args_as value '$v'";
     }
@@ -923,7 +944,7 @@ sub handle_result_naked {
     } else {
         $self->push_lines(
             '', '# add result envelope',
-            '$_w_res = [200, "OK", $_w_res->[2]];',
+            '$_w_res = [200, "OK", $_w_res];',
             '',
         );
     }
@@ -1012,6 +1033,7 @@ sub wrap {
     $args{indent}                      //= " " x 4;
     $args{convert}                     //= {};
     $args{compile}                     //= 1;
+    $args{log}                         //= 1;
     $args{validate_args}               //=
         # by default do not validate args again if previous wrapper(s) have
         # already done it
@@ -1060,7 +1082,7 @@ sub wrap {
             validate_result   => $args{validate_result},
             normalize_schema  => !$opt_sin,
         };
-        $meta->{$wrap_log_prop} = \@wrap_log;
+        $meta->{$wrap_log_prop} = \@wrap_log if $args{log};
     }
 
     # start iterating over properties
@@ -1154,28 +1176,30 @@ sub wrap {
             "(".$self->{_args_token}.");");
     if ($args{validate_result}) {
         $self->select_section('AFTER_CALL');
-        $self->push_lines(
-            '',
-            '# check that sub produces enveloped result',
-            'unless (ref($_w_res) eq "ARRAY" && $_w_res->[0]) {',
-        );
-        $self->indent;
-        if ($log->is_trace) {
-            $self->_add_module('Data::Dumper');
+        unless ($meta->{result_naked}) {
             $self->push_lines(
-                'local $Data::Dumper::Purity   = 1;',
-                'local $Data::Dumper::Terse    = 1;',
-                'local $Data::Dumper::Indent   = 0;',
+                '',
+                '# check that sub produces enveloped result',
+                'unless (ref($_w_res) eq "ARRAY" && $_w_res->[0]) {',
             );
-            $self->_err(500,
-                        qq["BUG: Sub $sub_name does not produce envelope: ".].
-                            qq[Data::Dumper::Dumper(\$_w_res)]);
-        } else {
-            $self->_err(500,
-                        qq["BUG: Sub $sub_name does not produce envelope"]);
+            $self->indent;
+            if ($log->is_trace) {
+                $self->_add_module('Data::Dumper');
+                $self->push_lines(
+                    'local $Data::Dumper::Purity   = 1;',
+                    'local $Data::Dumper::Terse    = 1;',
+                    'local $Data::Dumper::Indent   = 0;',
+                );
+                $self->_err(500,
+                            qq['BUG: Sub $sub_name does not produce envelope: '.].
+                                qq[Data::Dumper::Dumper(\$_w_res)]);
+            } else {
+                $self->_err(500,
+                            qq['BUG: Sub $sub_name does not produce envelope']);
+            }
+            $self->unindent;
+            $self->push_lines('}');
         }
-        $self->unindent;
-        $self->push_lines('}');
     }
 
     if ($self->_needs_eval) {
@@ -1306,6 +1330,16 @@ _
 Not all properties can be converted, but these are a partial list of those that
 can: v (usually do not need to be specified when converting from 1.0 to 1.1,
 will be done automatically), args_as, result_naked, default_lang.
+
+_
+        },
+        compile => {
+            schema => ['bool' => {default=>1}],
+            summary => 'Whether to compile the generated wrapper',
+            description => <<'_',
+
+Can be set to 0 to not actually wrap but just return the generated wrapper
+source code.
 
 _
         },

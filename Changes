@@ -13,6 +13,10 @@ Revision history for Perinci-Sub-Wrapper
            to existing code. Most users need not use it directly; instead, use
            Dist::Zilla::Plugin::Rinci::Wrap instead.
 
+         - Add option log=>1 (enabled by default) to generate wrap log (instead
+           of blessing the subroutine). This log contains information that can
+           help avoid duplicating argument validation, etc.
+
          [REMOVED FEATURES]
 
          - Remove option: remove_internal_properties (becomes internal
@@ -35,7 +39,8 @@ Revision history for Perinci-Sub-Wrapper
 
          - Remove function: wrap_all_subs() (unused)
 
-         - Remove the reading of _perinci.sub.wrapper.* meta attributes.
+         - Remove the reading of _perinci.sub.wrapper.* meta attributes (replace
+           it with x.perinci.sub.wrapper.log).
 
          - Remove the reading of PERINCI_WRAPPER_VALIDATE_ARGS.
 

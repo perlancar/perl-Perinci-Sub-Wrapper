@@ -4,6 +4,7 @@ use 5.010;
 use strict;
 use warnings;
 
+use Data::Clone;
 use Perinci::Sub::Wrapper qw(wrap_sub);
 use Test::More 0.96;
 
@@ -17,15 +18,16 @@ sub test_wrap {
     $test_args{wrap_args} or die "BUG: wrap_args not defined";
     my $test_name = $test_args{name} or die "BUG: test_name not defined";
 
-    for my $wrapper_type (qw/dynamic embed/) {
+    for my $wrapper_type (qw/embed dynamic/) {
         subtest "$test_name ($wrapper_type)" => sub {
 
-            my $wrap_args = { %{ $test_args{wrap_args} } };
+            my $wrap_args = clone $test_args{wrap_args};
             die "BUG: embed must not be specified in wrap_args, test_wrap() ".
                 "will always test dynamic (embed=0) *and* embed mode"
                     if exists $wrap_args->{embed};
             if ($wrapper_type eq 'embed') {
                 $wrap_args->{embed} = 1;
+                diag explain $wrap_args->{meta};
             } else {
                 $wrap_args->{embed} = 0;
             }
@@ -55,18 +57,32 @@ sub test_wrap {
             my $sub;
             if ($wrapper_type eq 'embed') {
                 my $src = $wrap_res->[2]{source};
+                my $meta = $wrap_res->[2]{meta};
+                my $args_as = $meta->{args_as};
+                my $orig_args_as = $wrap_args->{meta}{args_as} // 'hash';
                 my $sub_name = $wrap_res->[2]{sub_name};
                 my $eval_src = join(
                     "\n",
-                    $src->{part1},
-                    $src->{part2},
+                    $src->{presub1},
+                    $src->{presub2},
                     'sub {',
-                    '    my %args = @_;',
-                    $src->{part3},
-                    ($src->{part4} ? '    $_w_res = do {' : ''),
-                    $sub_name. ($sub_name =~ /\A\$/ ? '->':''). '(%args);',
-                    ($src->{part4} ? '}; # do' : ''),
-                    $src->{part4},
+                    '    my %args;',
+                    ('    my @args;') x !!($orig_args_as eq 'array' || $args_as eq 'array'),
+                    ('    my $args;') x !!($orig_args_as =~ /ref/ || $args_as =~ /ref/),
+                    '    '.
+                        ($args_as eq 'hash' ? '%args = @_;' :
+                             $args_as eq 'hashref' ? '$args = $_[0] // {}; %args = %$args;' :
+                                 $args_as eq 'array' ? '@args = @_;' :
+                                     '$args = $_[0] // [];'),
+                    $src->{preamble},
+                    ($src->{postamble} ? '    $_w_res = do {' : ''),
+                    $sub_name. ($sub_name =~ /\A\$/ ? '->':'').'('.
+                        ($orig_args_as eq 'hash' ? '%args' :
+                             $orig_args_as eq 'hashref' ? '$args' :
+                                 $orig_args_as eq 'array' ? '@args' :
+                                     '$args').');',
+                    ($src->{postamble} ? '}; # do' : ''),
+                    $src->{postamble},
                     '}; # sub',
                 );
                 $sub = eval $eval_src;
