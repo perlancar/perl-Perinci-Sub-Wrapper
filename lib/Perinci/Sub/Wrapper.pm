@@ -395,7 +395,7 @@ sub handle_v {
 
     # converting metadata from v1.0 to v1.1
     if ($meta->{args}) {
-        for my $a (keys %{$meta->{args}}) {
+        for my $a (sort keys %{$meta->{args}}) {
             my $old = $meta->{args}{$a};
             my $new = {};
             if (ref($old) eq 'ARRAY') {
@@ -469,7 +469,7 @@ sub handle_default_lang {
     }
     if ($meta->{args}) {
         push @ee, map {[$meta->{args}{$_}, '$meta->{args}'."{$_}"]}
-            keys %{$meta->{args}};
+            sort keys %{$meta->{args}};
     }
     if ($meta->{tags}) {
         push @ee, map {[$meta->{tags}[$_], '$meta->{tags}'."[$_]"]}
@@ -703,7 +703,7 @@ sub handle_args {
 
     # normalize schema
     unless ($opt_sin) {
-        for my $an (keys %$v) {
+        for my $an (sort keys %$v) {
             my $as = $v->{$an};
             if ($as->{schema}) {
                 $as->{schema} =
@@ -743,7 +743,7 @@ sub handle_args {
 
     for my $argname (sort keys %$v) {
         my $argspec = $v->{$argname};
-        for (sort keys %$argspec) {
+        for (keys %$argspec) {
             if (/\A_/) {
                 delete $argspec->{$_} if $opt_rip;
                 next;
@@ -836,7 +836,7 @@ sub handle_result {
                     __squote($v->{schema}).';');
         }
         if ($v->{statuses}) {
-            for my $s (keys %{$v->{statuses}}) {
+            for my $s (sort keys %{$v->{statuses}}) {
                 my $sv = $v->{statuses}{$s};
                 if ($sv->{schema}) {
                     $sv->{schema} =
