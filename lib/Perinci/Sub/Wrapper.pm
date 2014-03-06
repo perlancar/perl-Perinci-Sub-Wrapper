@@ -1601,6 +1601,8 @@ C<LOG_SAH_VALIDATOR_CODE>, but during wrapping this environment flag is
 currently disabled by this module, so you need to set
 L<LOG_PERINCI_WRAPPER_CODE> instead.
 
+=back
+
 =head2 caller() doesn't work from inside my wrapped code!
 
 Wrapping adds at least one or two levels of calls: one for the wrapper

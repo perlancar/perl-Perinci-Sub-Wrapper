@@ -1,6 +1,6 @@
 Revision history for Perinci-Sub-Wrapper
 
-0.51     2014-03-05 (SHARYANTO) (not yet released)
+0.51     2014-03-06 (SHARYANTO)
 
          - This release removes some features to make the module simpler and has
            less overhead for simpler cases. The wrapper is now also able to
