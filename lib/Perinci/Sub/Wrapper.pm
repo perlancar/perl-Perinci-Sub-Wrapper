@@ -1042,13 +1042,17 @@ sub wrap {
         # already done it
         !(grep {$_->{validate_result}} @$wrap_logs);
 
+    my $sub_ref_name;
     # if sub_name is not provided, create a unique name for it. it is needed by
     # the wrapper-generated code (e.g. printing error messages)
-    if (!$sub_name) {
+    if (!$sub_name || $sub) {
         my $n = $comppkg . "::sub".Scalar::Util::refaddr($sub);
         no strict 'refs'; no warnings; ${$n} = $sub;
         use experimental 'smartmatch';
-        $args{sub_name} = $sub_name = '$' . $n;
+        if (!$sub_name) {
+            $args{sub_name} = $sub_name = '$' . $n;
+        }
+        $sub_ref_name = '$' . $n;
     }
     # if meta name is not provided, we store the meta somewhere, it is needed by
     # the wrapper-generated code (e.g. deps clause).
@@ -1169,9 +1173,10 @@ sub wrap {
     }
 
     $self->select_section('CALL');
+    my $sn = $sub_ref_name // $sub_name;
     $self->push_lines(
         ($needs_store_res ? '$_w_res = ' : "") .
-        $sub_name. ($sub_name =~ /^\$/ ? "->" : "").
+        $sn. ($sn =~ /^\$/ ? "->" : "").
             "(".$self->{_args_token}.");");
     if ($args{validate_result}) {
         $self->select_section('AFTER_CALL');
@@ -1201,7 +1206,8 @@ sub wrap {
         }
     }
 
-    if ($self->_needs_eval) {
+    my $use_eval = $self->_needs_eval;
+    if ($use_eval) {
         $self->select_section('CLOSE_EVAL');
         $self->push_lines('return $_w_res;');
         $self->unindent;
@@ -1237,7 +1243,13 @@ sub wrap {
     }
 
     # return wrap result
-    my $result = {sub_name=>$sub_name, meta=>$meta, meta_name=>$meta_name};
+    my $result = {
+        sub_name     => $sub_name,
+        sub_ref_name => $sub_ref_name,
+        meta         => $meta,
+        meta_name    => $meta_name,
+        use_eval     => $use_eval,
+    };
     if ($args{embed}) {
         $result->{source} = $self->_format_embed_wrapper_code;
     } else {
