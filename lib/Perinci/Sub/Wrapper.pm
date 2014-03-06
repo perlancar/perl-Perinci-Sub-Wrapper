@@ -1127,7 +1127,7 @@ sub wrap {
         my $meth = "handlemeta_$k";
         unless ($self->can($meth)) {
             # try a property module first
-            eval { require "Perinci/Sub/Property/$k.pm" };
+            require "Perinci/Sub/Property/$k.pm";
             unless ($self->can($meth)) {
                 return [500, "No handler for property $k0 ($meth)"];
             }
