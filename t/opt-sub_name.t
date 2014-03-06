@@ -22,8 +22,7 @@ test_wrap(
     },
     wrap_status => 200,
     posttest => sub {
-        my ($wrap_res, $call_res) = @_;
-        my $sub = $wrap_res->[2]{sub};
+        my ($wrap_res, $call_res, $sub) = @_;
         is_deeply($sub->(), [200, "OK", "foor"], "call result");
     },
 );

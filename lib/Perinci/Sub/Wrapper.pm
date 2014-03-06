@@ -823,7 +823,7 @@ sub handle_args {
                 $self->push_lines('}');
             }
         }
-        if ($argspec->{req}) {
+        if ($argspec->{req} && $opt_va) {
             $self->_errif(
                 400, qq["Missing required argument: $argname"],
                 "!exists($argterm)");
@@ -960,7 +960,6 @@ sub handle_deps {
     $self->push_lines('', '# check dependencies');
     $self->push_lines('require Perinci::Sub::DepChecker;');
     #$self->push_lines('use Data::Dump; dd '.$v.';');
-    $self->push_lines('use Data::Dump; dd \%SPEC;');
     $self->push_lines('my $_w_deps_res = Perinci::Sub::DepChecker::check_deps('.
                           $v.'->{deps});');
     $self->_errif(412, '"Deps failed: $_w_deps_res"', '$_w_deps_res');

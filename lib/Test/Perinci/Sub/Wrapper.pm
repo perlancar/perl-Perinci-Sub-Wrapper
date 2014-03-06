@@ -18,7 +18,7 @@ sub test_wrap {
     $test_args{wrap_args} or die "BUG: wrap_args not defined";
     my $test_name = $test_args{name} or die "BUG: test_name not defined";
 
-    for my $wrapper_type (qw/embed dynamic/) {
+    for my $wrapper_type (qw/dynamic embed/) {
         subtest "$test_name ($wrapper_type)" => sub {
 
             my $wrap_args = clone $test_args{wrap_args};
@@ -27,7 +27,7 @@ sub test_wrap {
                     if exists $wrap_args->{embed};
             if ($wrapper_type eq 'embed') {
                 $wrap_args->{embed} = 1;
-                diag explain $wrap_args->{meta};
+                #diag explain $wrap_args->{meta};
             } else {
                 $wrap_args->{embed} = 0;
             }
@@ -179,7 +179,7 @@ sub test_wrap {
             } # if calls
 
             if ($test_args{posttest}) {
-                $test_args{posttest}->($wrap_res, $call_res);
+                $test_args{posttest}->($wrap_res, $call_res, $sub);
             }
 
             done_testing();

@@ -14,7 +14,7 @@ my $meta = {
     links=>[{_ln1=>"1"}],
 };
 test_wrap(
-    name => '(remove_internal_properties=1, default)',
+    name => '(_remove_internal_properties=1, default)',
     wrap_args => {sub => $sub, meta => $meta},
     wrap_status => 200,
     posttest => sub {
@@ -28,8 +28,8 @@ test_wrap(
     },
 );
 test_wrap(
-    name => '(remove_internal_properties=0)',
-    wrap_args => {sub => $sub, meta => $meta, remove_internal_properties=>0},
+    name => '(_remove_internal_properties=0)',
+    wrap_args => {sub => $sub, meta => $meta, _remove_internal_properties=>0},
     wrap_status => 200,
     posttest => sub {
         my ($wrap_res, $call_res) = @_;
