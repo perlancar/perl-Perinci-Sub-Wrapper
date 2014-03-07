@@ -800,6 +800,7 @@ sub handle_args {
                     schema_is_normalized => !$opt_sin,
                     return_type          => 'str',
                     indent_level         => $self->get_indent_level + 4,
+                    %{ $self->{_args}{_extra_sah_compiler_args} // {}},
                 );
                 $self->_add_module($_) for @{ $cd->{modules} };
                 $self->_add_var($_, $cd->{vars}{$_})
@@ -906,6 +907,7 @@ sub handle_result {
                 schema_is_normalized => $opt_sin,
                 return_type          => 'str',
                 indent_level         => $self->get_indent_level + 4,
+                %{ $self->{_args}{_extra_sah_compiler_args} // {}},
             );
             $self->_add_module($_) for @{ $cd->{modules} };
             $self->_add_var($_, $cd->{vars}{$_})
@@ -1027,6 +1029,7 @@ sub wrap {
         $wrap_logs->[-1] && $wrap_logs->[-1]{normalize_schema} ? 1 : 0;
     $args{_remove_internal_properties} //= 1;
     $args{_embed}                      //= 0;
+    $args{_extra_sah_compiler_args}    //= undef;
 
     # defaults for arguments
     $args{indent}                      //= " " x 4;
