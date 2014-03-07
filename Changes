@@ -1,11 +1,26 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.52     2014-03-07 (SHARYANTO)
+
+         - Fixes for Perinci::Sub::Property::retry.
+
+         - Don't hide/trap the error when requiring property module.
+
+         - When 'sub' as well as 'sub_name' is given, use 'sub' when calling the
+           subroutine. 'sub_name' is used to print out nice name for the sub.
+
+
 0.51     2014-03-06 (SHARYANTO)
 
          - This release removes some features to make the module simpler and has
            less overhead for simpler cases. The wrapper is now also able to
            generate code appropriate for embedding directly into source code
            during build (see Dist::Zilla::Plugin::Rinci::Wrap for more details).
+
+         [INCOMPATIBLE CHANGES]
+
+         - No longer bless wrapped subroutines to mark it as wrapped (see log=>1
+           instead).
 
          [NEW FEATURES]
 
