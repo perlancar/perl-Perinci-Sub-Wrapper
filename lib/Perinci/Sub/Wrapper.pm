@@ -1211,9 +1211,12 @@ sub wrap {
         $self->select_section('CLOSE_EVAL');
         $self->push_lines('return $_w_res;');
         $self->unindent;
+        $self->_add_var('_w_eval_err');
         $self->push_lines(
             '};',
-            'my $_w_eval_err = $@;');
+            '$_w_eval_err = $@;');
+        );
+
         # _needs_eval will automatically be enabled here, due after_eval being
         # filled
         $self->select_section('after_eval');
