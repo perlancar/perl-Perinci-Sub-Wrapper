@@ -21,6 +21,10 @@ sub test_wrap {
     for my $wrapper_type (qw/dynamic embed/) {
         subtest "$test_name ($wrapper_type)" => sub {
 
+            if ($test_args{pretest}) {
+                $test_args{pretest}->();
+            }
+
             my $wrap_args = clone $test_args{wrap_args};
             die "BUG: embed must not be specified in wrap_args, test_wrap() ".
                 "will always test dynamic (embed=0) *and* embed mode"
@@ -183,6 +187,7 @@ sub test_wrap {
             }
 
             done_testing();
+
         }; # subtest
     } # for $wrapper_type
 }
