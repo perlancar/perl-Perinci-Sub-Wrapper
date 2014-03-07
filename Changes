@@ -1,5 +1,23 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.53     2014-03-07 (SHARYANTO)
+
+         [BUG FIXES]
+
+         - In embed mode should also put wrap log.
+
+         [ENHANCEMENTS]
+
+         - Mark embed mode in wrap log, so Perinci::Access::Perl can choose to
+           skip re-wrapping if already wrapped in embed mode.
+
+         - Add _extra_sah_compiler_args option (for passing comment=>0, for
+           Dist::Zilla::Plugin::Rinci::Wrap)/
+
+         - Always keep comments in generated code on their own lines (to make it
+           easier to squish the code, like in Dist::Zilla::Plugin::Rinci::Wrap).
+
+
 0.52     2014-03-07 (SHARYANTO)
 
          - Fixes for Perinci::Sub::Property::retry.
