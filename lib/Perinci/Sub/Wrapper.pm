@@ -1232,7 +1232,7 @@ sub wrap {
     $self->push_lines('return $_w_res;') if $needs_store_res;
     $self->select_section('CLOSE_SUB');
     $self->unindent;
-    $self->push_lines('} # wrapper sub');
+    $self->push_lines('}'); # wrapper sub
 
     unless ($self->section_empty('MODIFY_META')) {
         $self->select_section('BEFORE_MODIFY_META');
@@ -1241,7 +1241,7 @@ sub wrap {
         $self->push_lines('my $meta = '.$self->{_args}{meta_name}.';');
         $self->select_section('MODIFY_META');
         $self->unindent;
-        $self->push_lines('} # modify meta');
+        $self->push_lines('}'); # modify meta
     }
 
     # return wrap result
