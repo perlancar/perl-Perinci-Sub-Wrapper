@@ -1091,6 +1091,7 @@ sub wrap {
         if ($args{log}) {
             $meta->{$wrap_log_prop} = \@wrap_log;
             {
+                local $wrap_log[-1]{embed} = 1;
                 $self->line_modify_meta($wrap_log_prop, \@wrap_log);
             }
         }
