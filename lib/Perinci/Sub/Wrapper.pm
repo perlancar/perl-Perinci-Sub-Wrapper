@@ -1215,7 +1215,6 @@ sub wrap {
         $self->push_lines(
             '};',
             '$_w_eval_err = $@;');
-        );
 
         # _needs_eval will automatically be enabled here, due after_eval being
         # filled
