@@ -104,7 +104,7 @@ sub _known_sections {
         before_call => {order=>30},
 
         # used e.g. to load modules used by validation
-        before_call_before_arg_validation => {order=>32},
+        before_call_before_arg_validation => {order=>31},
 
         before_call_arg_validation => {order=>32},
 
