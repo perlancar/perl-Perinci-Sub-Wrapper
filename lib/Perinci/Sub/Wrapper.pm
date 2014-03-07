@@ -1088,7 +1088,12 @@ sub wrap {
             validate_result   => $args{validate_result},
             normalize_schema  => !$opt_sin,
         };
-        $meta->{$wrap_log_prop} = \@wrap_log if $args{log};
+        if ($args{log}) {
+            $meta->{$wrap_log_prop} = \@wrap_log;
+            {
+                $self->line_modify_meta($wrap_log_prop, \@wrap_log);
+            }
+        }
     }
 
     # start iterating over properties
