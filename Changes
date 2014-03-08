@@ -1,5 +1,11 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.54     2014-03-08 (SHARYANTO)
+
+         - deps property: Require Perinci::Sub::DepChecker so it's detectable by
+           DZP::Rinci::Wrap.
+
+
 0.53     2014-03-07 (SHARYANTO)
 
          [BUG FIXES]
