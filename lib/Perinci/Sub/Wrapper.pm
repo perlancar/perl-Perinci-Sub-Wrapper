@@ -960,7 +960,7 @@ sub handle_deps {
     my $v     = $self->{_args}{meta_name};
     $self->select_section('before_call_after_arg_validation');
     $self->push_lines('', '# check dependencies');
-    $self->push_lines('require Perinci::Sub::DepChecker;');
+    $self->_add_module("Perinci::Sub::DepChecker");
     #$self->push_lines('use Data::Dump; dd '.$v.';');
     $self->push_lines('my $_w_deps_res = Perinci::Sub::DepChecker::check_deps('.
                           $v.'->{deps});');
