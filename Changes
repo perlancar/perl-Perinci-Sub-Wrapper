@@ -50,7 +50,7 @@ Revision history for Perinci-Sub-Wrapper
 
          - New option embed=>1 to generate code suitable for embedding/insertion
            to existing code. Most users need not use it directly; instead, use
-           Dist::Zilla::Plugin::Rinci::Wrap instead.
+           Dist::Zilla::Plugin::Rinci::Wrap.
 
          - Add option log=>1 (enabled by default) to generate wrap log (instead
            of blessing the subroutine). This log contains information that can
@@ -62,7 +62,7 @@ Revision history for Perinci-Sub-Wrapper
            _remove_internal_properties).
 
          - Remove options: allow_invalid_args and allow_unknown_args (they are
-           regulated by validate_args).
+           now regulated by validate_args).
 
          - Remove option: normalize_schema (becomes internal
            _schema_is_normalized).
