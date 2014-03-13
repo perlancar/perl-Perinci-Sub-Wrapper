@@ -130,6 +130,8 @@ sub _known_sections {
 
         after_call_res_validation => {order=>62},
 
+        after_call_after_res_validation => {order=>63},
+
         # reserved by wrapper to put eval end '}' and capturing result in
         # $_w_res and $@ in $eval_err
         CLOSE_EVAL => {order=>70},
