@@ -14,7 +14,7 @@ subtest 'opt: log' => sub {
         posttest => sub {
             my ($wrap_res, $call_res) = @_;
             my $meta = $wrap_res->[2]{meta};
-            ok($meta->{"x.perinci.sub.wrapper.log"}, "wrap log produced");
+            ok($meta->{"x.perinci.sub.wrapper.logs"}, "wrap log produced");
         },
     );
     test_wrap(
@@ -23,7 +23,7 @@ subtest 'opt: log' => sub {
         posttest => sub {
             my ($wrap_res, $call_res) = @_;
             my $meta = $wrap_res->[2]{meta};
-            ok(!$meta->{"x.perinci.sub.wrapper.log"}, "wrap log not produced");
+            ok(!$meta->{"x.perinci.sub.wrapper.logs"}, "wrap log not produced");
         },
     );
 };

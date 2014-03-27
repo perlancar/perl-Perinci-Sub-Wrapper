@@ -1,5 +1,13 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.56     2014-03-27 (SHARYANTO)
+
+         [INCOMPATIBLE CHANGES]
+
+         - Rename Rinci attribute 'x.perinci.sub.wrapper.log{,s}' to be more
+           consistent.
+
+
 0.55     2014-03-12 (SHARYANTO)
 
          - Add section: after_call_after_res_validation.
