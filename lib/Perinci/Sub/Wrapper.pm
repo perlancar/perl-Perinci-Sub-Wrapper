@@ -1012,7 +1012,7 @@ sub wrap {
 
     my ($self, %args) = @_;
 
-    my $wrap_log_prop = "x.perinci.sub.wrapper.log";
+    my $wrap_log_prop = "x.perinci.sub.wrapper.logs";
 
     # required arguments
     my $sub      = $args{sub};
@@ -1299,7 +1299,7 @@ properties changed, e.g. schema in `args` and `result` normalized, some values
 changed according to the `convert` argument, some defaults set, etc.
 
 The new metadata will also contain (or append) the wrapping log located in the
-`x.perinci.sub.wrapper.log` attribute. The wrapping log marks that the wrapper
+`x.perinci.sub.wrapper.logs` attribute. The wrapping log marks that the wrapper
 has added some functionality (like validating arguments or result) so that
 future nested wrapper can choose to avoid duplicating the same functionality.
 
