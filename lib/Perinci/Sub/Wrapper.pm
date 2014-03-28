@@ -98,11 +98,6 @@ sub _known_sections {
         # reserved by wrapper for generating 'eval {'
         OPEN_EVAL => {order=>20},
 
-        # for handlers to put various checks before calling the wrapped sub,
-        # from data validation, argument conversion, etc. this is now
-        # deprecated. see various before_call_* instead.
-        before_call => {order=>30},
-
         # used e.g. to load modules used by validation
         before_call_before_arg_validation => {order=>31},
 
@@ -112,18 +107,20 @@ sub _known_sections {
         before_call_after_arg_validation => {order=>33},
 
         # feed arguments to sub
-        before_call_feed_args => {order=>49},
+        before_call_feed_args => {order=>48},
+
+        # for handlers that *must* do stuffs right before call
+        before_call_right_before => {order=>49},
 
         # reserved by the wrapper for calling the sub
         CALL => {order=>50},
 
-        # reserved by the wrapper for doing stuffs after call
-        AFTER_CALL => {order=>51},
+        # for handlers that *must* do stuffs right after call
+        before_call_right_after => {order=>51},
 
-        # for handlers to put various things after calling, from validating
-        # result, enveloping result, etc. this is now deprecated. see various
-        # after_call_* instead.
-        after_call => {order=>60},
+        # reserved by the wrapper for adding/stripping result envelope, this
+        # happens before result validation
+        AFTER_CALL_ADD_OR_STRIP_RESULT_ENVELOPE => {order=>52},
 
         # used e.g. to load modules used by validation
         after_call_before_res_validation => {order=>61},
@@ -981,18 +978,16 @@ sub handle_result_naked {
     return if !!$v == !!$old;
     $self->line_modify_meta(result_naked => $v ? 1:0);
 
-    $self->select_section('after_eval');
+    $self->select_section('AFTER_CALL_ADD_OR_STRIP_RESULT_ENVELOPE');
     if ($v) {
         $self->push_lines(
             '', '# strip result envelope',
             '$_w_res = $_w_res->[2];',
-            '',
         );
     } else {
         $self->push_lines(
             '', '# add result envelope',
             '$_w_res = [200, "OK", $_w_res];',
-            '',
         );
     }
 }
@@ -1233,7 +1228,7 @@ sub wrap {
         $sn. ($sn =~ /^\$/ ? "->" : "").
             "(".$self->{_args_token}.");");
     if ($args{validate_result}) {
-        $self->select_section('AFTER_CALL');
+        $self->select_section('after_call_before_res_validation');
         unless ($meta->{result_naked}) {
             $self->push_lines(
                 '',
