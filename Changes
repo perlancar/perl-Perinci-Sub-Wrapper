@@ -1,5 +1,24 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.57     2014-03-28 (SHARYANTO)
+
+         [INCOMPATIBLE CHANGES]
+
+         - Remove (deprecated) sections: {before,after}_call. They have been
+           replaced with the more fine-grained {before,after}_call_* sections.
+
+         - Add sections: before_call_right_before_call,
+           after_call_right_after_call.
+
+         [ENHANCEMENTS]
+
+         - result property: check unknown result spec properties.
+
+         - result property: Can load Perinci::Sub::Property::result::* modules
+           to handle unknown result spec properties. An example of this is
+           Perinci::Sub::Property::result::table.
+
+
 0.56     2014-03-27 (SHARYANTO)
 
          [INCOMPATIBLE CHANGES]
