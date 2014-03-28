@@ -110,13 +110,13 @@ sub _known_sections {
         before_call_feed_args => {order=>48},
 
         # for handlers that *must* do stuffs right before call
-        before_call_right_before => {order=>49},
+        before_call_right_before_call => {order=>49},
 
         # reserved by the wrapper for calling the sub
         CALL => {order=>50},
 
         # for handlers that *must* do stuffs right after call
-        before_call_right_after => {order=>51},
+        after_call_right_after_call => {order=>51},
 
         # reserved by the wrapper for adding/stripping result envelope, this
         # happens before result validation
