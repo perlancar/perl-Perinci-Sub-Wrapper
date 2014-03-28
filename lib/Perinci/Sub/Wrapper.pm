@@ -928,7 +928,7 @@ sub handle_result {
     }
 }
 
-sub handlemeta_result_naked { {v=>2, prio=>100, convert=>1} }
+sub handlemeta_result_naked { {v=>2, prio=>99, convert=>1} }
 sub handle_result_naked {
     my ($self, %args) = @_;
 
@@ -984,10 +984,10 @@ sub handle_deps {
     }
 }
 
-sub handlemeta_x { {v=>2, prio=>99} }
+sub handlemeta_x { {v=>2, prio=>100} }
 sub handle_x {}
 
-sub handlemeta_entity_v { {v=>2, prio=>99} }
+sub handlemeta_entity_v { {v=>2, prio=>100} }
 sub handle_entity_v {}
 
 sub _reset_work_data {
