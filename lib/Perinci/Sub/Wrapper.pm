@@ -840,7 +840,8 @@ sub handle_result {
 
     my ($self, %args) = @_;
 
-    my $v = $self->{_meta}{result};
+    my $meta = $self->{_meta};
+    my $v = $meta->{result};
     return unless $v;
 
     my $opt_sin = $self->{_args}{_schema_is_normalized};
@@ -873,10 +874,52 @@ sub handle_result {
         }
     }
 
-    for my $k (keys %$v) {
-        if ($k =~ /^_/) {
-            delete $v->{$k} if $opt_rip;
+    # collect and check handlers
+    my %handler_args;
+    my %handler_metas;
+    for my $k0 (keys %$v) {
+        if ($k0 =~ /^_/) {
+            delete $v->{$k0} if $opt_rip;
+            next;
         }
+        my $k = $k0;
+        $k =~ s/\..+//;
+
+        # check builtin result spec key
+        next if $k =~ /\A(
+                           summary|description|tags|default_lang|
+                           schema|
+                           x
+                       )\z/x;
+        # try a property module first
+        require "Perinci/Sub/Property/result/$k.pm";
+        my $meth = "handlemeta_result__$k";
+        unless ($self->can($meth)) {
+            die "No handler for property result/$k0 ($meth)";
+        }
+        my $hm = $self->$meth;
+        $hm->{v} //= 1;
+        next unless defined $hm->{prio};
+        die "Please update property handler result/$k which is still at v=$hm->{v} ".
+            "(needs v=$protocol_version)"
+                unless $hm->{v} == $protocol_version;
+        my $ha = {
+            prio=>$hm->{prio}, value=>$v->{$k0}, property=>$k0,
+            meth=>"handle_result__$k",
+        };
+        $handler_args{$k} = $ha;
+        $handler_metas{$k} = $hm;
+    }
+
+    # call all the handlers in order
+    for my $k (sort {$handler_args{$a}{prio} <=> $handler_args{$b}{prio}}
+                   keys %handler_args) {
+        my $ha = $handler_args{$k};
+        my $meth = $ha->{meth};
+        local $self->{_cur_handler}      = $meth;
+        local $self->{_cur_handler_meta} = $handler_metas{$k};
+        local $self->{_cur_handler_args} = $ha;
+        $self->$meth(args=>\%args, meta=>$meta, %$ha);
     }
 
     # validate result
