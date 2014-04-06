@@ -1045,8 +1045,8 @@ sub _reset_work_data {
 }
 
 sub wrap {
-    require Data::Clone;
     require Scalar::Util;
+    require SHARYANTO::MaybeXS;
 
     my ($self, %args) = @_;
 
@@ -1059,7 +1059,7 @@ sub wrap {
     $args{meta} or return [400, "Please specify meta"];
     my $meta_name = $args{meta_name};
     # we clone the meta because we'll replace stuffs
-    my $meta     = Data::Clone::clone($args{meta});
+    my $meta     = SHARYANTO::MaybeXS::clone($args{meta});
     my $wrap_logs = $meta->{$wrap_log_prop} // [];
 
     # currently internal args, not exposed/documented
