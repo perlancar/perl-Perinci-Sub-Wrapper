@@ -6,6 +6,7 @@ use warnings;
 use experimental 'smartmatch';
 use Log::Any '$log';
 
+use Function::Fallback::CoreOrPP qw(clone);
 use Perinci::Sub::Util qw(err);
 
 use Exporter qw(import);
@@ -1046,7 +1047,6 @@ sub _reset_work_data {
 
 sub wrap {
     require Scalar::Util;
-    require SHARYANTO::MaybeXS;
 
     my ($self, %args) = @_;
 
@@ -1059,7 +1059,7 @@ sub wrap {
     $args{meta} or return [400, "Please specify meta"];
     my $meta_name = $args{meta_name};
     # we clone the meta because we'll replace stuffs
-    my $meta     = SHARYANTO::MaybeXS::clone($args{meta});
+    my $meta     = clone($args{meta});
     my $wrap_logs = $meta->{$wrap_log_prop} // [];
 
     # currently internal args, not exposed/documented

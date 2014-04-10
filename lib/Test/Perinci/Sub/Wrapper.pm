@@ -4,8 +4,8 @@ use 5.010;
 use strict;
 use warnings;
 
+use Function::Fallback::CoreOrPP qw(clone);
 use Perinci::Sub::Wrapper qw(wrap_sub);
-use SHARYANTO::MaybeXS;
 use Test::More 0.96;
 
 our @ISA = qw(Exporter);
@@ -25,7 +25,7 @@ sub test_wrap {
                 $test_args{pretest}->();
             }
 
-            my $wrap_args = SHARYANTO::MaybeXS::clone($test_args{wrap_args});
+            my $wrap_args = clone($test_args{wrap_args});
             die "BUG: embed must not be specified in wrap_args, test_wrap() ".
                 "will always test dynamic (embed=0) *and* embed mode"
                     if exists $wrap_args->{embed};
