@@ -1,5 +1,29 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.59     2014-04-30 (SHARYANTO)
+
+         - In this release Perinci::Sub::Wrapper now uses
+         Perinci::Sub::Normalize and several features are removed.
+
+         [REMOVED FEATURES]
+
+         - Conversion of v (1.0 -> 1.1) is now removed. Only v1.1 metadata are
+           accepted. This makes the code simpler and the feature should seldom
+           be used nowadays. Those who still need the functionality can now use
+           Perinci::Sub::Convert::v, which is extracted from this module.
+
+         - Conversion of default_lang is now removed. This makes the code
+           simpler and the feature should seldom be used. Those who still need
+           the functionality can now use Perinci::Sub::Convert::default_lang,
+           which is extracted from this module.
+
+         - Remove the _remove_internal_properties option (which is undocumented
+           anyway).
+
+         - The whole modify_meta code is removed. Metadata should now just be
+           normalized using Perinci::Sub::Normalize instead.
+
+
 0.58     2014-04-10 (SHARYANTO)
 
          - No functional changes.
