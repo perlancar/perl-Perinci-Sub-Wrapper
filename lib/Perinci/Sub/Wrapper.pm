@@ -895,6 +895,7 @@ sub wrap {
     for my $k0 (keys %props) {
         my $k = $k0;
         $k =~ s/\..+//;
+        next if $k =~ /\A_/;
         next if $handler_args{$k};
         #if ($k ~~ $self->{_args}{skip}) {
         #    $log->tracef("Skipped property %s (mentioned in skip)", $k);

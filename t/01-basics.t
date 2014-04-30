@@ -7,6 +7,11 @@ use warnings;
 use Test::More 0.98;
 use Test::Perinci::Sub::Wrapper qw(test_wrap);
 
+test_wrap(
+    name => 'internal properties are ignored',
+    wrap_args => {sub=>{}, meta=>{v=>1.1, _foo=>1}},
+);
+
 subtest 'double wrapping' => sub {
     my $meta;
     test_wrap(
