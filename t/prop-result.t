@@ -19,6 +19,12 @@ subtest 'prop: result' => sub {
         wrap_dies => 1,
     );
 
+    $meta = {v=>1.1, result=>{x=>1, "x.y"=>2}};
+    test_wrap(
+        name      => 'result spec key x',
+        wrap_args => {sub => $sub, meta => $meta},
+    );
+
     $meta = {v=>1.1, result=>{_foo=>1}};
     test_wrap(
         name        => 'result spec key prefixed by _ is ignored',

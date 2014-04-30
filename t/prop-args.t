@@ -33,6 +33,12 @@ subtest 'prop: args' => sub {
         wrap_args   => {sub => $sub, meta => $meta},
     );
 
+    $meta = {v=>1.1, args=>{a=>{_foo=>1}}};
+    test_wrap(
+        name        => 'arg spec key prefixed by _ is ignored',
+        wrap_args   => {sub => $sub, meta => $meta},
+    );
+
     $meta = {v=>1.1, args=>{a=>{req=>1, schema=>'int*'}}};
     test_wrap(
         name        => 'req arg + schema req no schema default',

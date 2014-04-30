@@ -7,6 +7,7 @@ use experimental 'smartmatch';
 use Log::Any '$log';
 
 use Function::Fallback::CoreOrPP qw(clone);
+use Perinci::Sub::Normalize qw(normalize_function_metadata);
 use Perinci::Sub::Util qw(err);
 
 use Exporter qw(import);
@@ -15,6 +16,7 @@ our @EXPORT_OK = qw(wrap_sub);
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
 # VERSION
+# DATE
 
 our %SPEC;
 
@@ -61,12 +63,6 @@ sub _add_var {
     }
 }
 
-sub line_modify_meta {
-    my ($self, $prop, $val) = @_;
-    $self->select_section('MODIFY_META');
-    $self->push_lines('$meta->{'.__squote($prop).'} = '.__squote($val).';');
-}
-
 sub _known_sections {
 
     # order=>N regulates the order of code. embed=>1 means the code is for embed
@@ -74,12 +70,6 @@ sub _known_sections {
 
     state $val = {
         before_sub_require_modules => {order=>1},
-
-        # for wrapper to modify function metadata, only generated when
-        # generating embeded code
-        BEFORE_MODIFY_META => {order=>2, embed=>1},
-
-        MODIFY_META => {order=>3, embed=>1},
 
         # reserved by wrapper for setting Perl package and declaring 'sub {'
         OPEN_SUB => {order=>4},
@@ -349,13 +339,8 @@ sub _format_embed_wrapper_code {
         });
     $res->{presub1} = $j->[0];
 
-    $j = $self->_join_codes(
-        sub {
-            my %args = @_;
-            my $section = $args{section};
-            $section =~ /\A(BEFORE_MODIFY_META|MODIFY_META)\z/;
-        });
-    $res->{presub2} = $j->[0];
+    # no longer needed/produce, code to modify metadata
+    $res->{presub2} = '';
 
     $j = $self->_join_codes(
         sub {
@@ -382,185 +367,18 @@ sub _format_embed_wrapper_code {
     $res;
 }
 
-sub handlemeta_v { {v=>2, prio=>0.1, convert=>1} }
-sub handle_v {
-    my ($self, %args) = @_;
-
-    my $v      = $args{new} // $args{value};
-    die "Cannot produce metadata other than v1.1 ($v)" unless $v == 1.1;
-
-    return if $v == $args{value};
-    $self->line_modify_meta(v => $v);
-    die "Cannot convert metadata other than from v1.0"
-        unless $args{value} == 1.0;
-
-    my $meta = $self->{_meta};
-
-    # converting metadata from v1.0 to v1.1
-    if ($meta->{args}) {
-        for my $a (sort keys %{$meta->{args}}) {
-            my $old = $meta->{args}{$a};
-            my $new = {};
-            if (ref($old) eq 'ARRAY') {
-                for (qw/summary description/) {
-                    $new->{$_} = $old->[1]{$_} if defined $old->[1]{$_};
-                    delete $old->[1]{$_};
-                }
-                if (defined $old->[1]{arg_pos}) {
-                    $new->{pos} = $old->[1]{arg_pos};
-                    delete $old->[1]{arg_pos};
-                }
-                if (defined $old->[1]{arg_greedy}) {
-                    $new->{greedy} = $old->[1]{arg_greedy};
-                    delete $old->[1]{arg_greedy};
-                }
-                if (defined $old->[1]{arg_complete}) {
-                    $new->{completion} = $old->[1]{arg_complete};
-                    delete $old->[1]{arg_complete};
-                }
-                if (defined $old->[1]{arg_aliases}) {
-                    $new->{cmdline_aliases} = $old->[1]{arg_aliases};
-                    while (my ($al, $als) = each %{ $new->{cmdline_aliases} }) {
-                        if ($als->{code}) {
-                            warn join(
-                                "",
-                                "Converting arg_aliases -> cmdline_aliases: ",
-                                "alias '$al' has 'code', ",
-                                "this must be converted manually due to change",
-                                "of arguments (now only receives \\\%args)"
-                            );
-                        }
-                    }
-                    delete $old->[1]{arg_aliases};
-                }
-            } elsif (!ref($old)) {
-                # do nothing
-            } else {
-                die "Can't handle v1.0 args property ".
-                    "(arg '$a' not array/scalar)";
-            }
-            $new->{schema} = $old;
-            $meta->{args}{$a} = $new;
-        }
-    }
-
-    if ($meta->{result}) {
-        $meta->{result} = {schema=>$meta->{result}};
-    }
-
-    $meta->{_note} = "Converted from v1.0 by ".__PACKAGE__.
-        " on ".scalar(localtime);
-}
-
-# before all the other language properties (summary, description, ...)
-sub handlemeta_default_lang { {v=>2, prio=>0.9, convert=>1} }
-sub handle_default_lang {
-    my ($self, %args) = @_;
-
-    my $meta = $self->{_meta};
-    my @ee = ([$meta, '$meta']);
-    if ($meta->{links}) {
-        push @ee, map {[$meta->{links}[$_], '$meta->{links}'."[$_]"]}
-            0..@{$meta->{links}}-1;
-    }
-    if ($meta->{examples}) {
-        push @ee, map {[$meta->{examples}[$_], '$meta->{examples}'."[$_]"]}
-            0..@{$meta->{examples}}-1;
-    }
-    if ($meta->{result}) {
-        push @ee, [$meta->{result}, '$meta->{result}'];
-    }
-    if ($meta->{args}) {
-        push @ee, map {[$meta->{args}{$_}, '$meta->{args}'."{$_}"]}
-            sort keys %{$meta->{args}};
-    }
-    if ($meta->{tags}) {
-        push @ee, map {[$meta->{tags}[$_], '$meta->{tags}'."[$_]"]}
-            grep {ref($meta->{tags}[$_]) eq 'HASH'} 0..@{$meta->{tags}}-1;
-    }
-
-    my $i = 0;
-    my ($value, $new);
-    $self->select_section('MODIFY_META');
-    for my $e (@ee) {
-        my ($m, $mvar) = ($e->[0], $e->[1]);
-        $i++;
-        if ($i == 1) {
-            $value = $args{value} // "en_US";
-            $new   = $args{new}   // $value;
-        } else {
-            $value = $m->{default_lang} // "en_US";
-        }
-        return if $value eq $new && $i == 1;
-        $m->{default_lang} = $new;
-        $self->push_lines('', "$mvar\->{default_lang} = '$new';");
-        for my $prop (qw/summary description/) {
-            my $propo = "$prop.alt.lang.$value";
-            my $propn = "$prop.alt.lang.$new";
-            next unless defined($m->{$prop}) ||
-                defined($m->{$propo}) || defined($m->{$propn});
-            if (defined $m->{$prop}) {
-                $m->{$propo} //= $m->{$prop};
-                $self->push_lines("$mvar\->{'$propo'} //= $mvar\->{'$prop'};");
-            }
-            if (defined $m->{$propn}) {
-                $m->{$prop} = $m->{$propn};
-                $self->push_lines("$mvar\->{'$prop'} = $mvar\->{'$propn'};");
-            } else {
-                delete $m->{$prop};
-                $self->push_lines("delete $mvar\->{'$prop'};");
-            }
-            if (defined $m->{$propn}) {
-                delete $m->{$propn};
-                $self->push_lines("delete $mvar\->{'$propn'};","");
-            }
-        }
-    }
-}
-
+sub handlemeta_v { {} }
 sub handlemeta_name { {} }
 sub handlemeta_summary { {} }
 sub handlemeta_description { {} }
 sub handlemeta_tags { {} }
-
-sub handlemeta_links { {v=>2, prio=>5} }
-sub handle_links {
-    my ($self, %args) = @_;
-
-    my $v = $self->{_meta}{links};
-    return unless $v;
-
-    my $opt_rip = $self->{_args}{_remove_internal_properties};
-    for my $ln (@$v) {
-        for my $k (keys %$ln) {
-            if ($k =~ /^_/) {
-                delete $ln->{$k} if $opt_rip;
-            }
-        }
-    }
-}
-
+sub handlemeta_default_lang { {} }
+sub handlemeta_links { {} }
 sub handlemeta_text_markup { {} }
 sub handlemeta_is_func { {} }
 sub handlemeta_is_meth { {} }
 sub handlemeta_is_class_meth { {} }
-
-sub handlemeta_examples { {v=>2, prio=>5} }
-sub handle_examples {
-    my ($self, %args) = @_;
-
-    my $v = $self->{_meta}{examples};
-    return unless $v;
-
-    my $opt_rip = $self->{_args}{_remove_internal_properties};
-    for my $ex (@$v) {
-        for my $k (keys %$ex) {
-            if ($k =~ /^_/) {
-                delete $ex->{$k} if $opt_rip;
-            }
-        }
-    }
-}
+sub handlemeta_examples { {} }
 
 # after args
 sub handlemeta_features { {v=>2, prio=>15} }
@@ -607,7 +425,6 @@ sub handle_args_as {
     # This will be rectified in the future.
 
     my $v = $new // $value;
-    $self->line_modify_meta(args_as => $v) if $v ne $value;
 
     $self->select_section('ACCEPT_ARGS');
     if ($v eq 'hash') {
@@ -716,37 +533,8 @@ sub handle_args {
     my $v = $self->{_meta}{args};
     return unless $v;
 
-    my $opt_rip = $self->{_args}{_remove_internal_properties};
     my $opt_sin = $self->{_args}{_schema_is_normalized};
     my $opt_va  = $self->{_args}{validate_args};
-
-    $self->select_section('MODIFY_META');
-
-    # normalize schema
-    unless ($opt_sin) {
-        for my $an (sort keys %$v) {
-            my $as = $v->{$an};
-            if ($as->{schema}) {
-                $as->{schema} =
-                    $self->_sah->normalize_schema($as->{schema});
-                $self->push_lines(
-                    "\$meta->{args}{'$an'}{schema} = ".
-                        __squote($as->{schema}).';');
-            }
-            my $als = $as->{cmdline_aliases};
-            if ($als) {
-                for my $al (sort keys %$als) {
-                    if ($als->{$al}{schema}) {
-                        $als->{$al}{schema} =
-                            $self->_sah->normalize_schema($als->{$al}{schema});
-                        $self->push_lines(
-                            "\$meta->{args}{'$an'}{cmdline_aliases}{'$al'}{schema} = ".
-                                __squote($als->{$al}{schema}).';');
-                    }
-                }
-            }
-        }
-    }
 
     if ($opt_va) {
         $self->_add_module("experimental 'smartmatch'");
@@ -764,25 +552,6 @@ sub handle_args {
 
     for my $argname (sort keys %$v) {
         my $argspec = $v->{$argname};
-        for (keys %$argspec) {
-            if (/\A_/) {
-                delete $argspec->{$_} if $opt_rip;
-                next;
-            }
-            # XXX schema's schema
-            # check known arg key
-            die "Unknown arg spec key '$_' for arg '$argname'" unless
-                /\A(
-                     summary|description|tags|default_lang|
-                     schema|req|pos|greedy|
-                     default|
-                     completion|element_completion|
-                     cmdline_aliases|
-                     cmdline_src|
-                     cmdline_on_getopt|
-                     x
-                 )(\..+)?\z/x;
-        }
 
         my $argterm = "\$args{'$argname'}";
 
@@ -844,44 +613,16 @@ sub handle_result {
 
     my $opt_sin = $self->{_args}{_schema_is_normalized};
     my $opt_vr  = $self->{_args}{validate_result};
-    my $opt_rip = $self->{_args}{_remove_internal_properties};
 
     my %ss; # key = status, value = schema
-
-    $self->select_section('MODIFY_META');
-
-    # normalize schemas
-    unless ($opt_sin) {
-        if ($v->{schema}) {
-            $v->{schema} = $self->_sah->normalize_schema($v->{schema});
-            $self->push_lines(
-                "\$meta->{result}{schema} = ".
-                    __squote($v->{schema}).';');
-        }
-        if ($v->{statuses}) {
-            for my $s (sort keys %{$v->{statuses}}) {
-                my $sv = $v->{statuses}{$s};
-                if ($sv->{schema}) {
-                    $sv->{schema} =
-                        $self->_sah->normalize_schema($sv->{schema});
-                    $self->push_lines(
-                        "\$meta->{result}{statuses}{$s}{schema} = ".
-                            __squote($sv->{schema}).';');
-                }
-            }
-        }
-    }
 
     # collect and check handlers
     my %handler_args;
     my %handler_metas;
     for my $k0 (keys %$v) {
-        if ($k0 =~ /^_/) {
-            delete $v->{$k0} if $opt_rip;
-            next;
-        }
         my $k = $k0;
         $k =~ s/\..+//;
+        next if $k =~ /\A_/;
 
         # check builtin result spec key
         next if $k =~ /\A(
@@ -977,7 +718,6 @@ sub handle_result_naked {
     my $v   = $args{new} // $old;
 
     return if !!$v == !!$old;
-    $self->line_modify_meta(result_naked => $v ? 1:0);
 
     $self->select_section('AFTER_CALL_ADD_OR_STRIP_RESULT_ENVELOPE');
     if ($v) {
@@ -1023,11 +763,8 @@ sub handle_deps {
     }
 }
 
-sub handlemeta_x { {v=>2, prio=>100} }
-sub handle_x {}
-
-sub handlemeta_entity_v { {v=>2, prio=>100} }
-sub handle_entity_v {}
+sub handlemeta_x { {} }
+sub handlemeta_entity_v { {} }
 
 sub _reset_work_data {
     my ($self, %args) = @_;
@@ -1067,7 +804,6 @@ sub wrap {
     my $comppkg  = $args{_compiled_package};
     $args{_schema_is_normalized}       //=
         $wrap_logs->[-1] && $wrap_logs->[-1]{normalize_schema} ? 1 : 0;
-    $args{_remove_internal_properties} //= 1;
     $args{_embed}                      //= 0;
     $args{_extra_sah_compiler_args}    //= undef;
 
@@ -1108,8 +844,10 @@ sub wrap {
 
     # shallow copy
     my $opt_cvt = { %{ $args{convert} } };
-    my $opt_rip = $args{_remove_internal_properties};
     my $opt_sin = $args{_schema_is_normalized};
+
+    $meta = normalize_function_metadata($meta)
+        unless $opt_sin;
 
     $self->_reset_work_data(_args=>\%args, _meta=>$meta);
 
@@ -1130,20 +868,10 @@ sub wrap {
         };
         if ($args{log}) {
             $meta->{$wrap_log_prop} = \@wrap_log;
-            {
-                local $wrap_log[-1]{embed} = 1;
-                $self->line_modify_meta($wrap_log_prop, \@wrap_log);
-            }
         }
     }
 
     # start iterating over properties
-
-    $opt_cvt->{v} //= 1.1;
-    $meta->{v} //= 1.0;
-    return [412, "Unsupported metadata version ($meta->{v}), only 1.0 & 1.1 ".
-                "supported"]
-        unless $meta->{v} == 1.1 || $meta->{v} == 1.0;
 
     $self->select_section('OPEN_SUB');
     $self->push_lines(
@@ -1165,10 +893,6 @@ sub wrap {
     my %handler_args;
     my %handler_metas;
     for my $k0 (keys %props) {
-        if ($k0 =~ /^_/) {
-            delete $meta->{$k0} if $opt_rip;
-            next;
-        }
         my $k = $k0;
         $k =~ s/\..+//;
         next if $handler_args{$k};
@@ -1282,16 +1006,6 @@ sub wrap {
     $self->select_section('CLOSE_SUB');
     $self->unindent;
     $self->push_lines('}'); # wrapper sub
-
-    unless ($self->section_empty('MODIFY_META')) {
-        $self->select_section('BEFORE_MODIFY_META');
-        $self->push_lines('{');
-        $self->indent;
-        $self->push_lines('my $meta = '.$self->{_args}{meta_name}.';');
-        $self->select_section('MODIFY_META');
-        $self->unindent;
-        $self->push_lines('}'); # modify meta
-    }
 
     # return wrap result
     my $result = {
@@ -1458,7 +1172,7 @@ sub wrap_sub {
 1;
 # ABSTRACT: A multi-purpose subroutine wrapping framework
 
-=for Pod::Coverage ^(new|handle(meta)?_.+|line_modify_meta|wrap|add_.+|section_empty|indent|unindent|get_indent_level|select_section|push_lines)$
+=for Pod::Coverage ^(new|handle(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|get_indent_level|select_section|push_lines)$
 
 =head1 SYNOPSIS
 
