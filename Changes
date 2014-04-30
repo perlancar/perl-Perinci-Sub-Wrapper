@@ -1,5 +1,10 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.60     2014-04-30 (SHARYANTO)
+
+         - [Bugfix] Forgot to ignore internal properties (/^_.+/).
+
+
 0.59     2014-04-30 (SHARYANTO)
 
          - In this release Perinci::Sub::Wrapper now uses
