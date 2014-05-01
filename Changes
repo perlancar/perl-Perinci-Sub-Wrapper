@@ -1,5 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.61     2014-05-01 (SHARYANTO)
+
+         - No functional changes.
+
+         - Bump prereq version Sah::Schema::Rinci to avoid fail reports [CT].
+
+
 0.60     2014-04-30 (SHARYANTO)
 
          - [Bugfix] Forgot to ignore internal properties (/^_.+/).
