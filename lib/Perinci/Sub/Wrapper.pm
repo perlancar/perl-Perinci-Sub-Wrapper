@@ -813,13 +813,19 @@ sub wrap {
     $args{compile}                     //= 1;
     $args{log}                         //= 1;
     $args{validate_args}               //=
+        $meta->{'x.perinci.sub.wrapper.validate_args'};
+    $args{validate_args}               //= 0
         # by default do not validate args again if previous wrapper(s) have
         # already done it
-        !(grep {$_->{validate_args}} @$wrap_logs);
-    $args{validate_result}             //=
+        if (grep {$_->{validate_args}} @$wrap_logs);
+    $args{validate_result}               //=
+        # function might want to disable validate_result by default, e.g. if
+        # source code has been processed with Dist::Zilla::Plugin::Rinci::
+        $meta->{'x.perinci.sub.wrapper.validate_result'};
+    $args{validate_result}             //= 0
         # by default do not validate result again if previous wrapper(s) have
         # already done it
-        !(grep {$_->{validate_result}} @$wrap_logs);
+        if (grep {$_->{validate_result}} @$wrap_logs);
 
     my $sub_ref_name;
     # if sub_name is not provided, create a unique name for it. it is needed by
