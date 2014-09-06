@@ -812,20 +812,26 @@ sub wrap {
     $args{convert}                     //= {};
     $args{compile}                     //= 1;
     $args{log}                         //= 1;
-    $args{validate_args}               //=
-        $meta->{'x.perinci.sub.wrapper.validate_args'};
+    $args{validate_args}               //= 0
+        # function might want to disable validate_args by default, e.g. if
+        # source code has been processed with
+        # Dist::Zilla::Plugin::Rinci::Validate
+        if $meta->{'x.perinci.sub.wrapper.disable_validate_args'};
     $args{validate_args}               //= 0
         # by default do not validate args again if previous wrapper(s) have
         # already done it
         if (grep {$_->{validate_args}} @$wrap_logs);
-    $args{validate_result}               //=
+    $args{validate_args}               //= 1;
+    $args{validate_result}             //= 0
         # function might want to disable validate_result by default, e.g. if
-        # source code has been processed with Dist::Zilla::Plugin::Rinci::
-        $meta->{'x.perinci.sub.wrapper.validate_result'};
+        # source code has been processed with
+        # Dist::Zilla::Plugin::Rinci::Validate
+        if $meta->{'x.perinci.sub.wrapper.disable_validate_result'};
     $args{validate_result}             //= 0
         # by default do not validate result again if previous wrapper(s) have
         # already done it
         if (grep {$_->{validate_result}} @$wrap_logs);
+    $args{validate_result}             //= 1;
 
     my $sub_ref_name;
     # if sub_name is not provided, create a unique name for it. it is needed by
@@ -1305,6 +1311,28 @@ The OO interface is only used internally or when you want to extend the wrapper.
 
 If set to 1, will log the generated wrapper code. This value is used to set
 C<$Log_Wrapper_Code> if it is not already set.
+
+
+=head1 RINCI FUNCTION METADATA
+
+=head2 x.perinci.sub.wrapper.disable_validate_args => bool
+
+Can be set to 1 to set C<validate_args> to 0 by default. This is used e.g. if
+you already embed/insert code to validate arguments by other means and do not
+want to repeat validating arguments. E.g. used if you use
+L<Dist::Zilla::Plugin::Rinci::Validate>.
+
+=head2 x.perinci.sub.wrapper.disable_validate_result => bool
+
+Can be set to 1 to set C<validate_result> to 0 by default. This is used e.g. if
+you already embed/insert code to validate result by other means and do not want
+to repeat validating result. E.g. used if you use
+L<Dist::Zilla::Plugin::Rinci::Validate>.
+
+=head2 x.perinci.sub.wrapper.logs => array
+
+Generated/added by this module to the function metadata for every wrapping done.
+Used to avoid adding repeated code, e.g. to validate result or arguments.
 
 
 =head1 PERFORMANCE NOTES

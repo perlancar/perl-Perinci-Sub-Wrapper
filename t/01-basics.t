@@ -41,5 +41,32 @@ subtest 'double wrapping' => sub {
     );
 };
 
+subtest "meta attribute 'x.perinci.sub.wrapper.disable_validate_args'" => sub {
+    test_wrap(
+        name => "meta attribute 'x.perinci.sub.wrapper.disable_validate_args' is consulted",
+        wrap_args => {sub=>{}, meta=>{v=>1.1, 'x.perinci.sub.wrapper.disable_validate_args'=>1}},
+        posttest => sub {
+            my ($wrap_res, $call_res) = @_;
+            my $meta = $wrap_res->[2]{meta};
+            my $log = $meta->{"x.perinci.sub.wrapper.logs"};
+            ok(!$log->[-1]{validate_args}, "validate_args is 0");
+        },
+    );
+};
+
+subtest "meta attribute 'x.perinci.sub.wrapper.disable_validate_result'" => sub {
+    my $meta;
+    test_wrap(
+        name => "meta attribute 'x.perinci.sub.wrapper.disable_validate_result' is consulted",
+        wrap_args => {sub=>{}, meta=>{v=>1.1, 'x.perinci.sub.wrapper.disable_validate_result'=>1}},
+        posttest => sub {
+            my ($wrap_res, $call_res) = @_;
+            $meta = $wrap_res->[2]{meta};
+            my $log = $meta->{"x.perinci.sub.wrapper.logs"};
+            ok(!$log->[-1]{validate_result}, "validate_result is 0");
+        },
+    );
+};
+
 DONE_TESTING:
 done_testing;
