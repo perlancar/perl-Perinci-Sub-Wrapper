@@ -1,5 +1,19 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.62     2014-09-06 (PERLANCAR)
+
+         - Tweak/fix logic of setting default value for validate_{args,result}.
+           First set default to 0 if the function metadata attribute
+           'x.perinci.sub.wrapper.disable_validate_{args,result}' is defined
+           (this was not done before; it's useful if e.g. args is validated
+           using code inserted by Dist::Zilla::Plugin::Rinci::Validate).
+
+           If that attribute is not defined, set default to 0 if there is
+           previous log of validate args/result ('x.perinci.sub.wrapper.logs').
+           Of course, all of this is only if validate_{args,result} argument for
+           wrap_sub() is not defined.
+
+
 0.61     2014-05-01 (SHARYANTO)
 
          - No functional changes.
