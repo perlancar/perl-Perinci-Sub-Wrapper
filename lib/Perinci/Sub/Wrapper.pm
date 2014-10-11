@@ -566,7 +566,7 @@ sub handle_args {
                     data_name            => $dn,
                     data_term            => $argterm,
                     schema               => $sch,
-                    schema_is_normalized => !$opt_sin,
+                    schema_is_normalized => $opt_sin,
                     return_type          => 'str',
                     indent_level         => $self->get_indent_level + 4,
                     %{ $self->{_args}{_extra_sah_compiler_args} // {}},
