@@ -27,6 +27,8 @@ subtest 'opt: _schema_is_normalized' => sub {
         name => 'not normalized',
         wrap_args => {sub => $sub, meta => $meta, _schema_is_normalized=>1},
         wrap_dies => 1,
+        # because Data::Sah will assume that schema is normalized, thus will die
+        # trying to access scalar "int" as array.
     );
 };
 
