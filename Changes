@@ -1,5 +1,14 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.63     2014-10-15 (PERLANCAR)
+
+         - Add support for arg submetadata & arg element submetadata (Rinci
+           1.1.56).
+
+         - [Bugfix] schema_is_normalized arg in Sah schema compilation was
+           incorrectly reversed.
+
+
 0.62     2014-09-06 (PERLANCAR)
 
          - Tweak/fix logic of setting default value for validate_{args,result}.
