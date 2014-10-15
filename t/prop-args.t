@@ -12,6 +12,7 @@ subtest 'prop: args' => sub {
         my %args = @_;
         [200, "OK", join("", map{"$_=".($args{$_}//"")."\n"} "a".."e")];
     };
+    my $sub_as_is = sub {my %args=@_; [200,"OK",\%args]};
     my $meta;
 
     $meta = {v=>1.1, args=>{a=>{foo=>1}}};
@@ -155,6 +156,49 @@ subtest 'prop: args' => sub {
             ],
         );
     }; # spec key: default
+
+    subtest "submetadata" => sub {
+        my $meta;
+
+        # XXX unknown prop in submetadata -> dies
+
+        $meta = {v=>1.1, args=>{a=>{schema=>'hash',meta=>{
+            v=>1.1, args=>{b=>{schema=>'str*', req=>1}, c=>{schema=>'int'}},
+        }}}};
+        test_wrap(
+            name        => 'normal',
+            wrap_args   => {sub => $sub_as_is, meta => $meta},
+            calls       => [
+                {argsr=>[], status=>200},
+                {argsr=>[a=>[]], status=>400, name=>'container must be hash'},
+                {argsr=>[a=>{c=>1}], status=>400, name=>"req"},
+                {argsr=>[a=>{b=>2, c=>"a"}], status=>400, name=>"schema"},
+                {argsr=>[a=>{b=>2, c=>undef}], status=>200},
+            ],
+        );
+    }; # submetadata
+
+    subtest "element submetadata" => sub {
+        my $meta;
+
+        # XXX unknown prop in submetadata -> dies
+
+        $meta = {v=>1.1, args=>{a=>{schema=>'array',element_meta=>{
+            v=>1.1, args=>{b=>{schema=>'str*', req=>1}, c=>{schema=>'int'}},
+        }}}};
+        test_wrap(
+            name        => 'normal',
+            wrap_args   => {sub => $sub_as_is, meta => $meta},
+            calls       => [
+                {argsr=>[], status=>200},
+                {argsr=>[a=>{}], status=>400, name=>'container must be array'},
+                {argsr=>[a=>[]], status=>200},
+                {argsr=>[a=>[{c=>1}]], status=>400, name=>"req"},
+                {argsr=>[a=>[{b=>2, c=>"a"}]], status=>400, name=>"schema"},
+                {argsr=>[a=>[{b=>2, c=>undef}]], status=>200},
+            ],
+        );
+    }; # element submetadata
 
 }; # subtest
 

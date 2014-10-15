@@ -526,25 +526,27 @@ sub _plc {
     state $plc = $self->_sah->get_compiler("perl");
 }
 
-sub handlemeta_args { {v=>2, prio=>10} }
-sub handle_args {
+sub _handle_args {
     my ($self, %args) = @_;
 
-    my $v = $self->{_meta}{args};
+    my $v = $args{v} // $self->{_meta}{args};
     return unless $v;
 
     my $opt_sin = $self->{_args}{_schema_is_normalized};
     my $opt_va  = $self->{_args}{validate_args};
 
+    my $prefix = $args{prefix} // '';
+    my $argsterm = $args{argsterm} // '%args';
+
     if ($opt_va) {
         $self->_add_module("experimental 'smartmatch'");
         $self->select_section('before_call_arg_validation');
-        $self->push_lines('', '# check args');
-        $self->push_lines('for (sort keys %args) {');
+        $self->push_lines('', '# check args') if $prefix eq '';
+        $self->push_lines("for (sort keys $argsterm) {");
         $self->indent;
-        $self->_errif(400, q["Invalid argument name '$_'"],
+        $self->_errif(400, q["Invalid argument name '].$prefix.q[$_'"],
                       '!/\A(-?)\w+(\.\w+)*\z/o');
-        $self->_errif(400, q["Unknown argument '$_'"],
+        $self->_errif(400, q["Unknown argument '].$prefix.q[$_'"],
                       '!($1 || $_ ~~ '.__squote([sort keys %$v]).')');
         $self->unindent;
         $self->push_lines('}');
@@ -553,7 +555,14 @@ sub handle_args {
     for my $argname (sort keys %$v) {
         my $argspec = $v->{$argname};
 
-        my $argterm = "\$args{'$argname'}";
+        my $argterm = $argsterm;
+        if ($argterm =~ /^%\{\s*(.+)\s*\}/) {
+            $argterm = $1 . "->{'$argname'}";
+        } elsif ($argterm =~ s/^%/\$/) {
+            $argterm .= "{'$argname'}";
+        } else {
+            $argterm .= "->{'$argname'}";
+        }
 
         my $sch = $argspec->{schema};
         if ($sch) {
@@ -578,8 +587,36 @@ sub handle_args {
                 $self->indent;
                 $self->push_lines("my \$err_$dn;\n$cd->{result};");
                 $self->_errif(
-                    400, qq["Invalid value for argument '$argname': \$err_$dn"],
+                    400, qq["Invalid value for argument '$prefix$argname': \$err_$dn"],
                     "\$err_$dn");
+                if ($argspec->{meta}) {
+                    $self->push_lines("# check subargs of $prefix$argname");
+                    $self->_handle_args(
+                        %args,
+                        v => $argspec->{meta}{args},
+                        prefix => ($prefix ? "$prefix/" : "") . "$argname/",
+                        argsterm => '%{'.$argterm.'}',
+                    );
+                }
+                if ($argspec->{element_meta}) {
+                    $self->push_lines("# check element subargs of $prefix$argname");
+                    my $indexterm = "$prefix$argname";
+                    $indexterm =~ s/\W+/_/g;
+                    $indexterm = '$i_' . $indexterm;
+                    $self->push_lines('for my '.$indexterm.' (0..$#{ '.$argterm.' }) {');
+                    $self->indent;
+                    $self->_errif(
+                        400, qq("Invalid value for argument '$prefix$argname\[).qq($indexterm]': must be hash"),
+                        "ref($argterm\->[$indexterm]) ne 'HASH'");
+                    $self->_handle_args(
+                        %args,
+                        v => $argspec->{element_meta}{args},
+                        prefix => ($prefix ? "$prefix/" : "") . "$argname\[$indexterm]/",
+                        argsterm => '%{'.$argterm.'->['.$indexterm.']}',
+                    );
+                    $self->unindent;
+                    $self->push_lines('}');
+                }
                 $self->unindent;
                 if ($has_default_prop) {
                     $self->push_lines(
@@ -599,6 +636,12 @@ sub handle_args {
                 "!exists($argterm)");
         }
     }
+}
+
+sub handlemeta_args { {v=>2, prio=>10} }
+sub handle_args {
+    my ($self, %args) = @_;
+    $self->_handle_args(%args);
 }
 
 sub handlemeta_result { {v=>2, prio=>50} }
