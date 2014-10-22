@@ -1,5 +1,14 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.64     2014-10-22 (PERLANCAR)
+
+         - Support result specification property 'encoding' by automatic
+           encoding of result when property is set (Rinci 1.1.61).
+
+         - Support argument specification property 'encoding' by automatic
+           decoding of function arguments when property is set (Rinci 1.1.59).
+
+
 0.63     2014-10-15 (PERLANCAR)
 
          - Add support for arg submetadata & arg element submetadata (Rinci
