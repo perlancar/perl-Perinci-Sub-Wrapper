@@ -8,6 +8,7 @@ use Test::More 0.98;
 use Test::Perinci::Sub::Wrapper qw(test_wrap);
 
 subtest 'prop: result' => sub {
+    my $sub_as_is = sub { my %args = @_; [200,"OK",\%args] };
     my $sub;
     my $meta;
 
@@ -60,6 +61,35 @@ subtest 'prop: result' => sub {
             {argsr=>[err=>1], status=>200},
         ],
     );
+
+    subtest "prop: encoding" => sub {
+        my $sub = sub { [200,"OK","\0\0\0",{foo=>"\0\0\0", "func.1"=>"\0\0\0"}] };
+        my $meta = {v=>1.1, result=>{err=>{}}, result=>{encoding=>"foo"}};
+        test_wrap(
+            name      => 'unknown encoding -> dies',
+            wrap_args => {sub => $sub, meta => $meta},
+            wrap_dies => 1,
+        );
+
+        $meta = {v=>1.1, result=>{err=>{}}, result=>{encoding=>"base64"}};
+        test_wrap(
+            name      => 'automatic encoding',
+            wrap_args => {sub => $sub, meta => $meta},
+            calls     => [
+                {argsr=>[], result=>[200,"OK","AAAA",{encoding=>"base64", foo=>"\0\0\0", "func.1"=>"AAAA"}]},
+            ],
+        );
+
+        $sub = sub { [200,"OK","\0\0\0",{encoding=>"base64"}] };
+        test_wrap(
+            name      => "won't encode if encoding result meta property already true",
+            wrap_args => {sub => $sub, meta => $meta},
+            calls     => [
+                {argsr=>[], result=>[200,"OK","\0\0\0",{encoding=>"base64"}]},
+            ],
+        );
+    };
+
 };
 
 done_testing;
