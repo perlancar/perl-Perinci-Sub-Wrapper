@@ -565,6 +565,21 @@ sub _handle_args {
         }
 
         my $sch = $argspec->{schema};
+
+        if (!$opt_va) {
+            if ($argspec->{encoding}) {
+                # also do this when !opt_va
+                die "Unknown encoding for arg '$argname', only 'base64' is supported"
+                    unless $argspec->{encoding} eq 'base64';
+                $self->_add_module("MIME::Base64");
+                $self->push_lines("if (defined($argterm) && !ref($argterm)) {");
+                $self->indent;
+                $self->push_lines("$argterm = MIME::Base64::decode_base64($argterm);");
+                $self->unindent;
+                $self->push_lines("}");
+            }
+        }
+
         if ($sch) {
             my $has_default_prop = exists($argspec->{default});
             my $has_sch_default  = ref($sch) eq 'ARRAY' &&
@@ -585,6 +600,17 @@ sub _handle_args {
                     for sort keys %{ $cd->{vars} };
                 $self->push_lines("if (exists($argterm)) {");
                 $self->indent;
+                if ($argspec->{encoding}) {
+                    # also do this when !opt_va
+                    die "Unknown encoding for arg '$argname', only 'base64' is supported"
+                        unless $argspec->{encoding} eq 'base64';
+                    $self->_add_module("MIME::Base64");
+                    $self->push_lines("if (defined($argterm) && !ref($argterm)) {");
+                    $self->indent;
+                    $self->push_lines("$argterm = MIME::Base64::decode_base64($argterm);");
+                    $self->unindent;
+                    $self->push_lines("}");
+                }
                 $self->push_lines("my \$err_$dn;\n$cd->{result};");
                 $self->_errif(
                     400, qq["Invalid value for argument '$prefix$argname': \$err_$dn"],

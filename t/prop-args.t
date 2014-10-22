@@ -112,6 +112,27 @@ subtest 'prop: args' => sub {
         ],
     );
 
+    subtest "spec key: encoding" => sub {
+        my $meta;
+
+        $meta = {v=>1.1, args=>{a=>{schema=>"str", encoding=>"foo"}}};
+        test_wrap(
+            name        => 'unknown encoding value -> dies',
+            wrap_args   => {sub => $sub_as_is, meta => $meta},
+            wrap_dies   => 1,
+        );
+        $meta = {v=>1.1, args=>{a=>{schema=>"str", encoding=>"base64"}}};
+        test_wrap(
+            name        => 'normal',
+            wrap_args   => {sub => $sub_as_is, meta => $meta},
+            calls       => [
+                {argsr=>[a=>"AAAA"], status=>200,
+                 actual_res_like=>qr/^a=\0\0\0/m,
+                 name=>'automatic decoding'},
+            ],
+        );
+    };
+
     subtest "spec key: default" => sub {
         my $meta;
 
