@@ -977,7 +977,7 @@ sub wrap {
             meth=>"handle_$k",
         };
         if (exists $opt_cvt->{$k0}) {
-            return [502, "Property '$k0' does not support conversion"]
+            return [501, "Property '$k0' does not support conversion"]
                 unless $hm->{convert};
             $ha->{new}   = $opt_cvt->{$k0};
             $meta->{$k0} = $opt_cvt->{$k0};
