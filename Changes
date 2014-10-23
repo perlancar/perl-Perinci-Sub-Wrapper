@@ -1,5 +1,13 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.65     2014-10-23 (PERLANCAR)
+
+         [REMOVED FEATURES]
+
+         - Remove support for 'encoding' (removed in Rinci 1.1.62).
+           Handling/encoding binary data will be handled at the Riap level.
+
+
 0.64     2014-10-22 (PERLANCAR)
 
          - Support result specification property 'encoding' by automatic
