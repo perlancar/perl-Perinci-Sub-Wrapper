@@ -200,6 +200,18 @@ subtest 'prop: args' => sub {
         );
     }; # element submetadata
 
+    subtest "default property is used even though there is no schema" => sub {
+        my $meta = {v=>1.1, args=>{a=>{default=>10}}};
+        test_wrap(
+            name => 'normal',
+            wrap_args => {sub => $sub_as_is, meta=>$meta},
+            calls => [
+                {argsr=>[], res=>[200, "OK", {a=>10}]},
+                {argsr=>[a=>3], res=>[200, "OK", {a=>3}]},
+            ],
+        );
+    };
+
 }; # subtest
 
 DONE_TESTING:

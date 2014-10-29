@@ -564,10 +564,10 @@ sub _handle_args {
             $argterm .= "->{'$argname'}";
         }
 
+        my $has_default_prop = exists($argspec->{default});
         my $sch = $argspec->{schema};
 
         if ($sch) {
-            my $has_default_prop = exists($argspec->{default});
             my $has_sch_default  = ref($sch) eq 'ARRAY' &&
                 exists($sch->[1]{default}) ? 1:0;
             if ($opt_va) {
@@ -616,7 +616,7 @@ sub _handle_args {
                         argsterm => '%{'.$argterm.'->['.$indexterm.']}',
                     );
                     $self->unindent;
-                    $self->push_lines('}');
+                    $self->push_lines('}'); # if exists arg
                 }
                 $self->unindent;
                 if ($has_default_prop) {
@@ -630,6 +630,11 @@ sub _handle_args {
                 }
                 $self->push_lines('}');
             }
+        } elsif ($has_default_prop) {
+            # doesn't have schema but have 'default' property, we still need to
+            # set default here
+            $self->push_lines("$argterm = ".__squote($argspec->{default}).
+                                  " if !exists($argterm);");
         }
         if ($argspec->{req} && $opt_va) {
             $self->_errif(
