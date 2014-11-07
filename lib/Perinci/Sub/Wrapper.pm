@@ -544,7 +544,7 @@ sub _handle_args {
         $self->push_lines('', '# check args') if $prefix eq '';
         $self->push_lines("for (sort keys $argsterm) {");
         $self->indent;
-        $self->_errif(400, q["Invalid argument name '].$prefix.q[$_'"],
+        $self->_errif(400, q["Invalid argument name (please use letters/numbers/underscores only)'].$prefix.q[$_'"],
                       '!/\A(-?)\w+(\.\w+)*\z/o');
         $self->_errif(400, q["Unknown argument '].$prefix.q[$_'"],
                       '!($1 || $_ ~~ '.__squote([sort keys %$v]).')');
@@ -588,7 +588,7 @@ sub _handle_args {
                 $self->indent;
                 $self->push_lines("my \$err_$dn;\n$cd->{result};");
                 $self->_errif(
-                    400, qq["Invalid value for argument '$prefix$argname': \$err_$dn"],
+                    400, qq["Argument '$prefix$argname' fails validation: \$err_$dn"],
                     "\$err_$dn");
                 if ($argspec->{meta}) {
                     $self->push_lines("# check subargs of $prefix$argname");
@@ -607,7 +607,7 @@ sub _handle_args {
                     $self->push_lines('for my '.$indexterm.' (0..$#{ '.$argterm.' }) {');
                     $self->indent;
                     $self->_errif(
-                        400, qq("Invalid value for argument '$prefix$argname\[).qq($indexterm]': must be hash"),
+                        400, qq("Argument '$prefix$argname\[).qq($indexterm]' fails validation: must be hash"),
                         "ref($argterm\->[$indexterm]) ne 'HASH'");
                     $self->_handle_args(
                         %args,
@@ -750,7 +750,7 @@ sub handle_result {
             $self->push_lines("$cd->{result};");
             $self->_errif(
                 500,
-                qq["BUG: Sub $sub_name produces invalid result (status=$s): ].
+                qq["BUG: Result from sub $sub_name fails validation: ].
                     qq[\$_w_err2_res"],
                 "\$_w_err2_res");
             $self->unindent;
