@@ -1082,10 +1082,10 @@ sub wrap {
     } else {
         my $source = $self->_format_dyn_wrapper_code;
         if ($Log_Wrapper_Code && $log->is_trace) {
-            require SHARYANTO::String::Util;
+            require String::LineNumber;
             $log->tracef("wrapper code:\n%s",
                          $ENV{LINENUM} // 1 ?
-                             SHARYANTO::String::Util::linenum($source) :
+                             String::LineNumber::linenum($source) :
                                    $source);
         }
         $result->{source} = $source;
