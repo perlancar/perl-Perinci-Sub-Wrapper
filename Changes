@@ -1,5 +1,13 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.67    2014-12-10 (PERLANCAR)
+
+	- No functional changes.
+
+	- Use new name of renamed/split module SHARYANTO::String::Util ->
+	  String::LineNumber.
+
+
 0.66     2014-10-29 (PERLANCAR)
 
          [BUG FIXES]
