@@ -1,5 +1,8 @@
 package Perinci::Sub::Wrapper;
 
+# DATE
+# VERSION
+
 use 5.010001;
 use strict;
 use warnings;
@@ -15,10 +18,12 @@ our @EXPORT_OK = qw(wrap_sub);
 
 our $Log_Wrapper_Code = $ENV{LOG_PERINCI_WRAPPER_CODE} // 0;
 
-# VERSION
-# DATE
-
 our %SPEC;
+
+$SPEC{':package'} = {
+    v => 1.1,
+    summary => 'A multi-purpose subroutine wrapping framework',
+};
 
 # "protocol version" (v). whenever there's a significant change in the basic
 # structure of the wrapper, which potentially cause some/a lot of property
@@ -1232,7 +1237,7 @@ sub wrap_sub {
 }
 
 1;
-# ABSTRACT: A multi-purpose subroutine wrapping framework
+# ABSTRACT:
 
 =for Pod::Coverage ^(new|handle(meta)?_.+|wrap|add_.+|section_empty|indent|unindent|get_indent_level|select_section|push_lines)$
 
