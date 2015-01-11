@@ -1,5 +1,11 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.68    2015-01-11 (PERLANCAR)
+
+	- Handle 'result/stream' property, add validation for streaming
+	  result.
+
+
 0.67    2014-12-10 (PERLANCAR)
 
 	- No functional changes.
