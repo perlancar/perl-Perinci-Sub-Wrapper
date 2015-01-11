@@ -62,6 +62,27 @@ subtest 'prop: result' => sub {
         ],
     );
 
+    $meta = {v=>1.1, result=>{stream=>1}};
+    test_wrap(
+        name      => 'stream (scalar result -> err)',
+        wrap_args => {sub => sub{[200,"OK",1]}, meta => $meta},
+        calls     => [
+            {argsr=>[], status=>500},
+        ],
+    );
+    test_wrap(
+        name      => 'stream (filehandle result -> ok)',
+        wrap_args => {
+            sub => sub{
+                open my($fh), "<", $INC{'Perinci/Sub/Wrapper.pm'};
+                [200,"OK",$fh];
+            },
+            meta => $meta,
+        },
+        calls     => [
+            {argsr=>[], status=>200},
+        ],
+    );
 };
 
 done_testing;

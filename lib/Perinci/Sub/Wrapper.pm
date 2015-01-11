@@ -668,7 +668,7 @@ sub handle_result {
     my $opt_sin = $self->{_args}{_schema_is_normalized};
     my $opt_vr  = $self->{_args}{validate_result};
 
-    my %ss; # key = status, value = schema
+    my %schemas_by_status; # key = status, value = schema
 
     # collect and check handlers
     my %handler_args;
@@ -681,7 +681,7 @@ sub handle_result {
         # check builtin result spec key
         next if $k =~ /\A(
                            summary|description|tags|default_lang|
-                           schema|statuses|
+                           schema|statuses|stream|
                            x
                        )\z/x;
         # try a property module first
@@ -718,25 +718,38 @@ sub handle_result {
     # validate result
     my @modules;
     if ($v->{schema} && $opt_vr) {
-        $ss{200} = $v->{schema};
+        $schemas_by_status{200} = $v->{schema};
     }
     if ($v->{statuses} && $opt_vr) {
         for my $s (keys %{$v->{statuses}}) {
             my $sv = $v->{statuses}{$s};
             if ($sv->{schema}) {
-                $ss{$s} = $sv->{schema};
+                $schemas_by_status{$s} = $sv->{schema};
             }
         }
     }
 
     my $sub_name = $self->{_args}{sub_name};
-    if (keys %ss) {
+
+    if ($v->{stream}) {
+
+        $self->select_section('after_call_res_validation');
+        $self->push_lines("my \$_w_res2 = \$_w_res->[2];");
+        $self->_add_module('Scalar::Util');
+        $self->_errif(
+            500,
+            q["Stream result must be either a glob, object that supports getitem/getline, or a (tied) array"],
+            '!(ref($_w_res2) eq "GLOB" || (Scalar::Util::blessed($_w_res2) && ($_w_res2->can("getitem") || $_w_res2->can("getline")) || ref($_w_res2) eq "ARRAY"))',
+        );
+
+    } elsif (keys %schemas_by_status) {
+
         $self->select_section('after_call_res_validation');
         $self->push_lines("my \$_w_res2 = \$_w_res->[2];");
         $self->push_lines("my \$_w_err2_res;");
 
-        for my $s (sort keys %ss) {
-            my $sch = $ss{$s};
+        for my $s (sort keys %schemas_by_status) {
+            my $sch = $schemas_by_status{$s};
             my $cd = $self->_plc->compile(
                 data_name            => '_w_res2',
                 # err_res can clash on arg named 'res'
@@ -760,7 +773,8 @@ sub handle_result {
                 "\$_w_err2_res");
             $self->unindent;
             $self->push_lines("}");
-        }
+        } # for schemas_by_status
+
     }
 }
 
