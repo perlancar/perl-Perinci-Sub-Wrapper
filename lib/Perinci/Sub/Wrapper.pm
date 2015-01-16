@@ -587,6 +587,7 @@ sub _handle_args {
                         qq["Argument '$prefix$argname' (stream) fails validation:  must be either a glob, object that supports getitem/getline, or a (tied) array"],
                         "!(ref($argterm) eq 'GLOB' || (Scalar::Util::blessed($argterm) && ($argterm->can('getitem') || $argterm->can('getline')) || ref($argterm) eq 'ARRAY'))",
                     );
+
                 } else {
                     my $dn = $argname; $dn =~ s/\W+/_/g;
                     my $cd = $self->_plc->compile(
@@ -634,19 +635,19 @@ sub _handle_args {
                         $self->push_lines('}'); # if exists arg
                     }
                 }
-            }
-            $self->unindent;
+                $self->unindent;
+                if ($has_default_prop) {
+                    $self->push_lines(
+                        '} else {',
+                        "    $argterm //= ".__squote($argspec->{default}).";");
+                } elsif ($has_sch_default) {
+                    $self->push_lines(
+                        '} else {',
+                        "    $argterm //= ".__squote($sch->[1]{default}).";");
+                }
+                $self->push_lines('}');
+            } # if opt_va
 
-            if ($has_default_prop) {
-                $self->push_lines(
-                    '} else {',
-                    "    $argterm //= ".__squote($argspec->{default}).";");
-            } elsif ($has_sch_default) {
-                $self->push_lines(
-                    '} else {',
-                    "    $argterm //= ".__squote($sch->[1]{default}).";");
-            }
-            $self->push_lines('}');
         } elsif ($has_default_prop) {
             # doesn't have schema but have 'default' property, we still need to
             # set default here
