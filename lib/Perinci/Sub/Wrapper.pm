@@ -584,8 +584,8 @@ sub _handle_args {
                     $self->_add_module('Scalar::Util');
                     $self->_errif(
                         500,
-                        qq["Argument '$prefix$argname' (stream) fails validation:  must be either a glob, object that supports getitem/getline, or a (tied) array"],
-                        "!(ref($argterm) eq 'GLOB' || (Scalar::Util::blessed($argterm) && ($argterm->can('getitem') || $argterm->can('getline')) || ref($argterm) eq 'ARRAY'))",
+                        qq["Argument '$prefix$argname' (stream) fails validation: must be coderef"],
+                        "!(ref($argterm) eq 'CODE')",
                     );
 
                 } else {
@@ -751,8 +751,8 @@ sub handle_result {
         $self->_add_module('Scalar::Util');
         $self->_errif(
             500,
-            q["Stream result must be either a glob, object that supports getitem/getline, or a (tied) array"],
-            '!(ref($_w_res2) eq "GLOB" || (Scalar::Util::blessed($_w_res2) && ($_w_res2->can("getitem") || $_w_res2->can("getline")) || ref($_w_res2) eq "ARRAY"))',
+            q["Stream result must be coderef"],
+            '!(ref($_w_res2) eq "CODE")',
         );
 
     } elsif (keys %schemas_by_status) {

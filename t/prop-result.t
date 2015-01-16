@@ -75,7 +75,7 @@ subtest 'prop: result' => sub {
         wrap_args => {
             sub => sub{
                 open my($fh), "<", $INC{'Perinci/Sub/Wrapper.pm'};
-                [200,"OK",$fh];
+                [200,"OK",sub{~~<$fh>}];
             },
             meta => $meta,
         },
