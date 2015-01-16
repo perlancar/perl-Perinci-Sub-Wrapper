@@ -576,65 +576,77 @@ sub _handle_args {
             my $has_sch_default  = ref($sch) eq 'ARRAY' &&
                 exists($sch->[1]{default}) ? 1:0;
             if ($opt_va) {
-                my $dn = $argname; $dn =~ s/\W+/_/g;
-                my $cd = $self->_plc->compile(
-                    data_name            => $dn,
-                    data_term            => $argterm,
-                    schema               => $sch,
-                    schema_is_normalized => $opt_sin,
-                    return_type          => 'str',
-                    indent_level         => $self->get_indent_level + 4,
-                    %{ $self->{_args}{_extra_sah_compiler_args} // {}},
-                );
-                $self->_add_module($_) for @{ $cd->{modules} };
-                $self->_add_var($_, $cd->{vars}{$_})
-                    for sort keys %{ $cd->{vars} };
+
                 $self->push_lines("if (exists($argterm)) {");
                 $self->indent;
-                $self->push_lines("my \$err_$dn;\n$cd->{result};");
-                $self->_errif(
-                    400, qq["Argument '$prefix$argname' fails validation: \$err_$dn"],
-                    "\$err_$dn");
-                if ($argspec->{meta}) {
-                    $self->push_lines("# check subargs of $prefix$argname");
-                    $self->_handle_args(
-                        %args,
-                        v => $argspec->{meta}{args},
-                        prefix => ($prefix ? "$prefix/" : "") . "$argname/",
-                        argsterm => '%{'.$argterm.'}',
-                    );
-                }
-                if ($argspec->{element_meta}) {
-                    $self->push_lines("# check element subargs of $prefix$argname");
-                    my $indexterm = "$prefix$argname";
-                    $indexterm =~ s/\W+/_/g;
-                    $indexterm = '$i_' . $indexterm;
-                    $self->push_lines('for my '.$indexterm.' (0..$#{ '.$argterm.' }) {');
-                    $self->indent;
+
+                if ($argspec->{stream}) {
+                    $self->_add_module('Scalar::Util');
                     $self->_errif(
-                        400, qq("Argument '$prefix$argname\[).qq($indexterm]' fails validation: must be hash"),
-                        "ref($argterm\->[$indexterm]) ne 'HASH'");
-                    $self->_handle_args(
-                        %args,
-                        v => $argspec->{element_meta}{args},
-                        prefix => ($prefix ? "$prefix/" : "") . "$argname\[$indexterm]/",
-                        argsterm => '%{'.$argterm.'->['.$indexterm.']}',
+                        500,
+                        qq["Argument '$prefix$argname' (stream) fails validation:  must be either a glob, object that supports getitem/getline, or a (tied) array"],
+                        "!(ref($argterm) eq 'GLOB' || (Scalar::Util::blessed($argterm) && ($argterm->can('getitem') || $argterm->can('getline')) || ref($argterm) eq 'ARRAY'))",
                     );
-                    $self->unindent;
-                    $self->push_lines('}'); # if exists arg
+                } else {
+                    my $dn = $argname; $dn =~ s/\W+/_/g;
+                    my $cd = $self->_plc->compile(
+                        data_name            => $dn,
+                        data_term            => $argterm,
+                        schema               => $sch,
+                        schema_is_normalized => $opt_sin,
+                        return_type          => 'str',
+                        indent_level         => $self->get_indent_level + 4,
+                        %{ $self->{_args}{_extra_sah_compiler_args} // {}},
+                    );
+                    $self->_add_module($_) for @{ $cd->{modules} };
+                    $self->_add_var($_, $cd->{vars}{$_})
+                        for sort keys %{ $cd->{vars} };
+                    $self->push_lines("my \$err_$dn;\n$cd->{result};");
+                    $self->_errif(
+                        400, qq["Argument '$prefix$argname' fails validation: \$err_$dn"],
+                        "\$err_$dn");
+                    if ($argspec->{meta}) {
+                        $self->push_lines("# check subargs of $prefix$argname");
+                        $self->_handle_args(
+                            %args,
+                            v => $argspec->{meta}{args},
+                            prefix => ($prefix ? "$prefix/" : "") . "$argname/",
+                            argsterm => '%{'.$argterm.'}',
+                        );
+                    }
+                    if ($argspec->{element_meta}) {
+                        $self->push_lines("# check element subargs of $prefix$argname");
+                        my $indexterm = "$prefix$argname";
+                        $indexterm =~ s/\W+/_/g;
+                        $indexterm = '$i_' . $indexterm;
+                        $self->push_lines('for my '.$indexterm.' (0..$#{ '.$argterm.' }) {');
+                        $self->indent;
+                        $self->_errif(
+                            400, qq("Argument '$prefix$argname\[).qq($indexterm]' fails validation: must be hash"),
+                            "ref($argterm\->[$indexterm]) ne 'HASH'");
+                        $self->_handle_args(
+                            %args,
+                            v => $argspec->{element_meta}{args},
+                            prefix => ($prefix ? "$prefix/" : "") . "$argname\[$indexterm]/",
+                            argsterm => '%{'.$argterm.'->['.$indexterm.']}',
+                        );
+                        $self->unindent;
+                        $self->push_lines('}'); # if exists arg
+                    }
                 }
-                $self->unindent;
-                if ($has_default_prop) {
-                    $self->push_lines(
-                        '} else {',
-                        "    $argterm //= ".__squote($argspec->{default}).";");
-                } elsif ($has_sch_default) {
-                    $self->push_lines(
-                        '} else {',
-                        "    $argterm //= ".__squote($sch->[1]{default}).";");
-                }
-                $self->push_lines('}');
             }
+            $self->unindent;
+
+            if ($has_default_prop) {
+                $self->push_lines(
+                    '} else {',
+                    "    $argterm //= ".__squote($argspec->{default}).";");
+            } elsif ($has_sch_default) {
+                $self->push_lines(
+                    '} else {',
+                    "    $argterm //= ".__squote($sch->[1]{default}).";");
+            }
+            $self->push_lines('}');
         } elsif ($has_default_prop) {
             # doesn't have schema but have 'default' property, we still need to
             # set default here
@@ -646,7 +658,7 @@ sub _handle_args {
                 400, qq["Missing required argument: $argname"],
                 "!exists($argterm)");
         }
-    }
+    } # for arg
 }
 
 sub handlemeta_args { {v=>2, prio=>10} }
