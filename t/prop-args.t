@@ -4,6 +4,7 @@ use 5.010;
 use strict;
 use warnings;
 
+use Sub::Iterator qw(gen_array_iterator);
 use Test::More 0.98;
 use Test::Perinci::Sub::Wrapper qw(test_wrap);
 
@@ -211,6 +212,35 @@ subtest 'prop: args' => sub {
             ],
         );
     };
+
+    # we have to do it twice here because the iterators are used up for each 'dynamic' and 'embed' test
+    for my $type ('dynamic', 'embed') {
+        test_wrap(
+            name      => "stream (arg validation on each record) (not $type)",
+            "skip_$type" => 1,
+            wrap_args => {
+                sub => sub{
+                    my %args = @_;
+                    my $a1 = $args{a1};
+                    my $sum = 0;
+                    while (defined(my $n = $a1->())) { $sum+=$n }
+                    [200, "OK", $sum];
+                },
+                meta => {
+                    v => 1.1,
+                    args => {
+                        a1 => {schema=>'int*', stream=>1},
+                    },
+                },
+            },
+            calls => [
+                {argsr=>[a1=>1], status=>400},
+                {argsr=>[a1=>gen_array_iterator([])], status=>200, actual_res=>0},
+                {argsr=>[a1=>gen_array_iterator([1,2,3])], status=>200, actual_res=>6},
+                {argsr=>[a1=>gen_array_iterator([1,2,"x"])], dies=>1},
+            ],
+        );
+    }
 
 }; # subtest
 

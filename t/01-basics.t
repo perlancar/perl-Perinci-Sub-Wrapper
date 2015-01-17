@@ -68,5 +68,7 @@ subtest "meta attribute 'x.perinci.sub.wrapper.disable_validate_result'" => sub 
     );
 };
 
+# XXX test function returns result metadata stream=>1 (even though result/stream => 0)
+
 DONE_TESTING:
 done_testing;

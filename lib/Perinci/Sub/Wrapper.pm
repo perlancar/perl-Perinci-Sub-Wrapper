@@ -581,61 +581,90 @@ sub _handle_args {
                 $self->indent;
 
                 if ($argspec->{stream}) {
-                    $self->_add_module('Scalar::Util');
                     $self->_errif(
-                        500,
+                        400,
                         qq["Argument '$prefix$argname' (stream) fails validation: must be coderef"],
                         "!(ref($argterm) eq 'CODE')",
                     );
-
-                } else {
-                    my $dn = $argname; $dn =~ s/\W+/_/g;
-                    my $cd = $self->_plc->compile(
-                        data_name            => $dn,
-                        data_term            => $argterm,
-                        schema               => $sch,
-                        schema_is_normalized => $opt_sin,
-                        return_type          => 'str',
-                        indent_level         => $self->get_indent_level + 4,
-                        %{ $self->{_args}{_extra_sah_compiler_args} // {}},
+                    $self->push_lines('{ # introduce scope because we want to declare a generic variable $i');
+                    $self->indent;
+                    $self->push_lines(
+                        'my $i = -1;',
+                        "my \$origsub = $argterm;",
+                        '# arg coderef wrapper for validation',
+                        "$argterm = sub {",
                     );
-                    $self->_add_module($_) for @{ $cd->{modules} };
-                    $self->_add_var($_, $cd->{vars}{$_})
-                        for sort keys %{ $cd->{vars} };
-                    $self->push_lines("my \$err_$dn;\n$cd->{result};");
+                    $self->indent;
+                    $self->push_lines(
+                        '$i++;',
+                        "my \$rec = \$origsub->();",
+                        'return undef unless defined $rec;',
+                    );
+                }
+
+                my $dn = $argname; $dn =~ s/\W+/_/g;
+                my $cd = $self->_plc->compile(
+                    data_name            => $dn,
+                    data_term            => $argspec->{stream} ? '$rec' : $argterm,
+                    schema               => $sch,
+                    schema_is_normalized => $opt_sin,
+                    return_type          => 'str',
+                    indent_level         => $self->get_indent_level + 1,
+                    %{ $self->{_args}{_extra_sah_compiler_args} // {}},
+                );
+                $self->_add_module($_) for @{ $cd->{modules} };
+                $self->_add_var($_, $cd->{vars}{$_})
+                    for sort keys %{ $cd->{vars} };
+                $cd->{result} =~ s/\A\s+//;
+                $self->push_lines(
+                    "my \$err_$dn;",
+                    "$cd->{result};",
+                );
+                if ($argspec->{stream}) {
+                    $self->push_lines(
+                        'if ('."\$err_$dn".') { die "Record #$i of streaming argument '."'$prefix$argname'".' fails validation: '."\$err_$dn".'" }',
+                        '$rec;',
+                    );
+                } else {
                     $self->_errif(
                         400, qq["Argument '$prefix$argname' fails validation: \$err_$dn"],
                         "\$err_$dn");
-                    if ($argspec->{meta}) {
-                        $self->push_lines("# check subargs of $prefix$argname");
-                        $self->_handle_args(
+                }
+                if ($argspec->{meta}) {
+                    $self->push_lines("# check subargs of $prefix$argname");
+                    $self->_handle_args(
                             %args,
                             v => $argspec->{meta}{args},
                             prefix => ($prefix ? "$prefix/" : "") . "$argname/",
                             argsterm => '%{'.$argterm.'}',
                         );
-                    }
-                    if ($argspec->{element_meta}) {
-                        $self->push_lines("# check element subargs of $prefix$argname");
-                        my $indexterm = "$prefix$argname";
-                        $indexterm =~ s/\W+/_/g;
-                        $indexterm = '$i_' . $indexterm;
-                        $self->push_lines('for my '.$indexterm.' (0..$#{ '.$argterm.' }) {');
-                        $self->indent;
-                        $self->_errif(
-                            400, qq("Argument '$prefix$argname\[).qq($indexterm]' fails validation: must be hash"),
-                            "ref($argterm\->[$indexterm]) ne 'HASH'");
-                        $self->_handle_args(
-                            %args,
-                            v => $argspec->{element_meta}{args},
-                            prefix => ($prefix ? "$prefix/" : "") . "$argname\[$indexterm]/",
-                            argsterm => '%{'.$argterm.'->['.$indexterm.']}',
-                        );
-                        $self->unindent;
-                        $self->push_lines('}'); # if exists arg
-                    }
+                }
+                if ($argspec->{element_meta}) {
+                    $self->push_lines("# check element subargs of $prefix$argname");
+                    my $indexterm = "$prefix$argname";
+                    $indexterm =~ s/\W+/_/g;
+                    $indexterm = '$i_' . $indexterm;
+                    $self->push_lines('for my '.$indexterm.' (0..$#{ '.$argterm.' }) {');
+                    $self->indent;
+                    $self->_errif(
+                        400, qq("Argument '$prefix$argname\[).qq($indexterm]' fails validation: must be hash"),
+                        "ref($argterm\->[$indexterm]) ne 'HASH'");
+                    $self->_handle_args(
+                        %args,
+                        v => $argspec->{element_meta}{args},
+                        prefix => ($prefix ? "$prefix/" : "") . "$argname\[$indexterm]/",
+                        argsterm => '%{'.$argterm.'->['.$indexterm.']}',
+                    );
+                    $self->unindent;
+                    $self->push_lines('}');
                 }
                 $self->unindent;
+                if ($argspec->{stream}) {
+                    $self->push_lines('}; # arg coderef wrapper');
+                    $self->unindent;
+                    $self->push_lines('} # close scope');
+                    $self->unindent;
+                }
                 if ($has_default_prop) {
                     $self->push_lines(
                         '} else {',
@@ -645,7 +674,7 @@ sub _handle_args {
                         '} else {',
                         "    $argterm //= ".__squote($sch->[1]{default}).";");
                 }
-                $self->push_lines('}');
+                $self->push_lines("} # if exists arg $prefix$argname");
             } # if opt_va
 
         } elsif ($has_default_prop) {
@@ -744,25 +773,24 @@ sub handle_result {
 
     my $sub_name = $self->{_args}{sub_name};
 
-    if ($v->{stream}) {
-
+    if ($opt_vr) {
         $self->select_section('after_call_res_validation');
-        $self->push_lines("my \$_w_res2 = \$_w_res->[2];");
-        $self->_add_module('Scalar::Util');
+        $self->push_lines(
+            'my $_w_res2 = $_w_res->[2];',
+            'my $_w_res_is_stream = $_w_res->[3]{stream} // ' . ($v->{stream} ? 1:0) . ';',
+        );
         $self->_errif(
             500,
             q["Stream result must be coderef"],
-            '!(ref($_w_res2) eq "CODE")',
+            '$_w_res_is_stream && ref($_w_res2) ne "CODE"',
         );
-
-    } elsif (keys %schemas_by_status) {
-
-        $self->select_section('after_call_res_validation');
-        $self->push_lines("my \$_w_res2 = \$_w_res->[2];");
-        $self->push_lines("my \$_w_err2_res;");
-
         for my $s (sort keys %schemas_by_status) {
             my $sch = $schemas_by_status{$s};
+            $self->push_lines("if (\$_w_res->[0] == $s) {");
+            $self->indent;
+            $self->push_lines('if (!$_w_res_is_stream) {');
+            $self->indent;
+
             my $cd = $self->_plc->compile(
                 data_name            => '_w_res2',
                 # err_res can clash on arg named 'res'
@@ -770,14 +798,14 @@ sub handle_result {
                 schema               => $sch,
                 schema_is_normalized => $opt_sin,
                 return_type          => 'str',
-                indent_level         => $self->get_indent_level + 4,
+                indent_level         => $self->get_indent_level + 1,
                 %{ $self->{_args}{_extra_sah_compiler_args} // {}},
             );
             $self->_add_module($_) for @{ $cd->{modules} };
             $self->_add_var($_, $cd->{vars}{$_})
                 for sort keys %{ $cd->{vars} };
-            $self->push_lines("if (\$_w_res->[0] == $s) {");
-            $self->indent;
+            $self->push_lines("my \$_w_err2_res;");
+            $cd->{result} =~ s/\A\s+//;
             $self->push_lines("$cd->{result};");
             $self->_errif(
                 500,
@@ -785,9 +813,42 @@ sub handle_result {
                     qq[\$_w_err2_res"],
                 "\$_w_err2_res");
             $self->unindent;
-            $self->push_lines("}");
+            $self->push_lines("} else {"); # stream
+            $self->indent;
+            $self->push_lines(
+                'my $i = -1;',
+                '# wrap result coderef for validation',
+                '$_w_res->[2] = sub {',
+            );
+            $self->indent;
+            $self->push_lines(
+                '$i++;',
+                'my $rec = $_w_res2->();',
+                'return undef unless defined $rec;',
+            );
+            # generate schema code once again, this time for when stream
+            $cd = $self->_plc->compile(
+                data_name            => 'rec',
+                # err_res can clash on arg named 'res'
+                err_term             => '$rec_err',
+                schema               => $sch,
+                schema_is_normalized => $opt_sin,
+                return_type          => 'str',
+                indent_level         => $self->get_indent_level + 1,
+                %{ $self->{_args}{_extra_sah_compiler_args} // {}},
+            );
+            $self->push_lines('my $rec_err;');
+            $cd->{result} =~ s/\A\s+//;
+            $self->push_lines("$cd->{result};");
+            $self->push_lines('if ($rec_err) { die "BUG: Result stream record #$i fail validation: $rec_err" }');
+            $self->push_lines('$rec;');
+            $self->unindent;
+            $self->push_lines('}; # result coderef wrapper');
+            $self->unindent;
+            $self->push_lines("} # if stream");
+            $self->unindent;
+            $self->push_lines("} # if status=$s");
         } # for schemas_by_status
-
     }
 }
 

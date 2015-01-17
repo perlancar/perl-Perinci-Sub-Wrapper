@@ -1,17 +1,19 @@
 package Test::Perinci::Sub::Wrapper;
 
+# DATE
+# VERSION
+
 use 5.010;
 use strict;
 use warnings;
 
 use Function::Fallback::CoreOrPP qw(clone);
+#use List::Util qw(shuffle);
 use Perinci::Sub::Wrapper qw(wrap_sub);
 use Test::More 0.96;
 
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(test_wrap);
-
-# VERSION
 
 sub test_wrap {
     my %test_args = @_;
@@ -19,6 +21,8 @@ sub test_wrap {
     my $test_name = $test_args{name} or die "BUG: test_name not defined";
 
     for my $wrapper_type (qw/dynamic embed/) {
+        next if $wrapper_type eq 'dynamic' && $test_args{skip_dynamic};
+        next if $wrapper_type eq 'embed'   && $test_args{skip_embed};
         subtest "$test_name ($wrapper_type)" => sub {
 
             if ($test_args{pretest}) {
@@ -170,13 +174,19 @@ sub test_wrap {
                         }
 
                         if (exists $call->{res}) {
+                            diag explain $call;
                             is_deeply($res, $call->{res}, "res")
                                 or diag explain $res;
                         }
 
+                        if (exists $call->{actual_res}) {
+                            is_deeply($res->[2], $call->{actual_res}, "actual res")
+                                or diag explain $res->[2];
+                        }
+
                         if (exists $call->{actual_res_re}) {
                             like($res->[2], $call->{actual_res_re},
-                                 "actual res");
+                                 "actual res re");
                         }
                     }; # subtest call #$i
                 }

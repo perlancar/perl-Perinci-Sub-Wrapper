@@ -4,6 +4,8 @@ use 5.010;
 use strict;
 use warnings;
 
+use Sub::Iterator qw(gen_array_iterator);
+use Test::Exception;
 use Test::More 0.98;
 use Test::Perinci::Sub::Wrapper qw(test_wrap);
 
@@ -82,6 +84,31 @@ subtest 'prop: result' => sub {
         calls     => [
             {argsr=>[], status=>200},
         ],
+    );
+
+    test_wrap(
+        name      => 'stream (validation on each record)',
+        wrap_args => {
+            sub => sub{
+                [200, "OK", gen_array_iterator([1,2,"x"])];
+            },
+            meta => {
+                v => 1.1,
+                result => {
+                    schema => 'int*',
+                    stream => 1,
+                },
+            },
+        },
+        posttest => sub {
+            my ($wrap_res, $call_res, $sub) = @_;
+            my $res = $sub->();
+            is($res->[0], 200, "status is 200");
+            is(ref($res->[2]), "CODE", "returns coderef");
+            is($res->[2]->(), 1);
+            is($res->[2]->(), 2);
+            dies_ok { $res->[2]->e() } 'third record not an int -> dies';
+        },
     );
 };
 
