@@ -1,5 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.71    2015-01-21 (PERLANCAR)
+
+	- No functional changes.
+
+	- Remove debugging diag().
+
+
 0.70    2015-01-17 (PERLANCAR)
 
 	- Support Rinci 1.1.71: streaming input & output now uses coderef only
