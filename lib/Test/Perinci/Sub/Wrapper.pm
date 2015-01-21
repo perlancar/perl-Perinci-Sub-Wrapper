@@ -174,7 +174,6 @@ sub test_wrap {
                         }
 
                         if (exists $call->{res}) {
-                            diag explain $call;
                             is_deeply($res, $call->{res}, "res")
                                 or diag explain $res;
                         }
