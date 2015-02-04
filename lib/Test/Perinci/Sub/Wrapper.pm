@@ -180,7 +180,7 @@ sub test_wrap {
 
                         if (exists $call->{actual_res}) {
                             is_deeply($res->[2], $call->{actual_res}, "actual res")
-                                or diag explain $res->[2];
+                                or diag explain $res;
                         }
 
                         if (exists $call->{actual_res_re}) {
