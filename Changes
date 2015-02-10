@@ -1,5 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.72    2015-02-10 (PERLANCAR)
+
+	- No functional changes.
+
+	- Fix typo in deps [GH#1].
+
+
 0.71    2015-01-21 (PERLANCAR)
 
 	- No functional changes.
