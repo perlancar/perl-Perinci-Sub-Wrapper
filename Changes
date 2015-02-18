@@ -1,5 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.73    2015-02-18 (PERLANCAR)
+
+	- Make sure we always use ## as trailing comment, to make it easier
+	  for others (like Dist::Zilla::Plugin::Rinci::Wrap) to strip the
+	  comments.
+
+
 0.72    2015-02-10 (PERLANCAR)
 
 	- No functional changes.
