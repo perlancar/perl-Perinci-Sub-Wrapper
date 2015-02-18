@@ -384,6 +384,8 @@ sub handlemeta_is_func { {} }
 sub handlemeta_is_meth { {} }
 sub handlemeta_is_class_meth { {} }
 sub handlemeta_examples { {} }
+sub handlemeta_entity_date { {} }
+sub handlemeta_entity_v { {} }
 
 # after args
 sub handlemeta_features { {v=>2, prio=>15} }
