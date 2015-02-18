@@ -1,5 +1,14 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.74    2015-02-19 (PERLANCAR)
+
+        - Ignore entity_date property (produced by Perinci::Access::Perl, for
+          example).
+
+        - Properly handle use/no statements from Data::Sah compilation result,
+          instead of converting them to require statements.
+
+
 0.73    2015-02-18 (PERLANCAR)
 
 	- Make sure we always use ## as trailing comment, to make it easier

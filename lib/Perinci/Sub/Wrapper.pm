@@ -637,6 +637,7 @@ sub _handle_args {
                     %{ $self->{_args}{_extra_sah_compiler_args} // {}},
                 );
                 $self->_add_modules($cd->{module_statements});
+                for (@{ $cd->{modules} }) { $self->_add_module($_) unless $cd->{module_statements}{$_} }
                 $self->_add_var($_, $cd->{vars}{$_})
                     for sort keys %{ $cd->{vars} };
                 $cd->{result} =~ s/\A\s+//;
@@ -826,6 +827,7 @@ sub handle_result {
                 %{ $self->{_args}{_extra_sah_compiler_args} // {}},
             );
             $self->_add_modules($cd->{module_statements});
+            for (@{ $cd->{modules} }) { $self->_add_module($_) unless $cd->{module_statements}{$_} }
             $self->_add_var($_, $cd->{vars}{$_})
                 for sort keys %{ $cd->{vars} };
             $self->push_lines("my \$_w_err2_res;");
