@@ -528,7 +528,11 @@ sub _sah {
 
 sub _plc {
     my $self = shift;
-    state $plc = $self->_sah->get_compiler("perl");
+    state $plc = do {
+        my $plc = $self->_sah->get_compiler("perl");
+        $plc->comment_style('shell2'); # to make all comment uses ## instead of #
+        $plc;
+    };
 }
 
 sub _handle_args {
@@ -586,7 +590,7 @@ sub _handle_args {
                         qq["Argument '$prefix$argname' (stream) fails validation: must be coderef"],
                         "!(ref($argterm) eq 'CODE')",
                     );
-                    $self->push_lines('{ # introduce scope because we want to declare a generic variable $i');
+                    $self->push_lines('{ ## introduce scope because we want to declare a generic variable $i');
                     $self->indent;
                     $self->push_lines(
                         'my $i = -1;',
@@ -660,9 +664,9 @@ sub _handle_args {
                 }
                 $self->unindent;
                 if ($argspec->{stream}) {
-                    $self->push_lines('}; # arg coderef wrapper');
+                    $self->push_lines('}; ## arg coderef wrapper');
                     $self->unindent;
-                    $self->push_lines('} # close scope');
+                    $self->push_lines('} ## close scope');
                     $self->unindent;
                 }
                 if ($has_default_prop) {
@@ -674,7 +678,7 @@ sub _handle_args {
                         '} else {',
                         "    $argterm //= ".__squote($sch->[1]{default}).";");
                 }
-                $self->push_lines("} # if exists arg $prefix$argname");
+                $self->push_lines("} ## if exists arg $prefix$argname");
             } # if opt_va
 
         } elsif ($has_default_prop) {
@@ -843,11 +847,11 @@ sub handle_result {
             $self->push_lines('if ($rec_err) { die "BUG: Result stream record #$i fail validation: $rec_err" }');
             $self->push_lines('$rec;');
             $self->unindent;
-            $self->push_lines('}; # result coderef wrapper');
+            $self->push_lines('}; ## result coderef wrapper');
             $self->unindent;
-            $self->push_lines("} # if stream");
+            $self->push_lines("} ## if stream");
             $self->unindent;
-            $self->push_lines("} # if status=$s");
+            $self->push_lines("} ## if status=$s");
         } # for schemas_by_status
     }
 }

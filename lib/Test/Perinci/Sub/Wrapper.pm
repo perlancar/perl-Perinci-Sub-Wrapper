@@ -103,6 +103,18 @@ sub test_wrap {
                 diag "eval source: ", $eval_src
                     if $ENV{LOG_PERINCI_WRAPPER_CODE};
             } else {
+
+                # check that we don't generate comment after code (unless it
+                # uses '##' instead of '#'), because this makes cutting comments
+                # easier. XXX this is using a simple regex and misses some.
+                for my $line (split /^/, $wrap_res->[2]{source}) {
+                    if ($line =~ /(.*?)\s+#\s+(.*)/) {
+                        my ($before, $after) = ($1, $2);
+                        next unless $before =~ /\S/;
+                        ok 0; diag "Source code contains comment line after some code '$line' (if you do this, you must use ## instead of # to help ease removing comment lines (e.g. in Dist::Zilla::Plugin::Rinci::Wrap))";
+                    }
+                }
+
                 $sub = $wrap_res->[2]{sub};
             }
 
