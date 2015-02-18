@@ -49,12 +49,32 @@ sub _add_module {
     unless ($mod ~~ $self->{_modules}) {
         local $self->{_cur_section};
         $self->select_section('before_sub_require_modules');
-        if ($mod =~ /(.+?)\s+(.+)/) {
-            $self->push_lines("use $1 $2;");
+        if ($mod =~ /(-?)(.+?)\s+(.+)/) {
+            if ($1) {
+                $self->push_lines("no $2 $3;");
+            } else {
+                $self->push_lines("use $2 $3;");
+            }
         } else {
             $self->push_lines("require $mod;");
         }
         push @{ $self->{_modules} }, $mod;
+    }
+}
+
+sub _add_modules {
+    my ($self, $mods) = @_;
+    for my $mod (sort keys %$mods) {
+        my $modspec = $mods->{$mod};
+        if ($modspec->[1]) {
+            if ($modspec->[0] eq 'no') {
+                $self->_add_module("-$mod ".join(" ", @{ $modspec->[1] }));
+            } else {
+                $self->_add_module( "$mod ".join(" ", @{ $modspec->[1] }));
+            }
+        } else {
+            $self->_add_module($mod);
+        }
     }
 }
 
@@ -384,8 +404,6 @@ sub handlemeta_is_func { {} }
 sub handlemeta_is_meth { {} }
 sub handlemeta_is_class_meth { {} }
 sub handlemeta_examples { {} }
-sub handlemeta_entity_date { {} }
-sub handlemeta_entity_v { {} }
 
 # after args
 sub handlemeta_features { {v=>2, prio=>15} }
@@ -618,7 +636,7 @@ sub _handle_args {
                     indent_level         => $self->get_indent_level + 1,
                     %{ $self->{_args}{_extra_sah_compiler_args} // {}},
                 );
-                $self->_add_module($_) for @{ $cd->{modules} };
+                $self->_add_modules($cd->{module_statements});
                 $self->_add_var($_, $cd->{vars}{$_})
                     for sort keys %{ $cd->{vars} };
                 $cd->{result} =~ s/\A\s+//;
@@ -807,7 +825,7 @@ sub handle_result {
                 indent_level         => $self->get_indent_level + 1,
                 %{ $self->{_args}{_extra_sah_compiler_args} // {}},
             );
-            $self->_add_module($_) for @{ $cd->{modules} };
+            $self->_add_modules($cd->{module_statements});
             $self->_add_var($_, $cd->{vars}{$_})
                 for sort keys %{ $cd->{vars} };
             $self->push_lines("my \$_w_err2_res;");
@@ -913,6 +931,7 @@ sub handle_deps {
 
 sub handlemeta_x { {} }
 sub handlemeta_entity_v { {} }
+sub handlemeta_entity_date { {} }
 
 sub _reset_work_data {
     my ($self, %args) = @_;
