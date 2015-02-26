@@ -7,7 +7,7 @@ use 5.010001;
 use strict;
 use warnings;
 use experimental 'smartmatch';
-use Log::Any '$log';
+use Log::Any::IfLOG '$log';
 
 use Function::Fallback::CoreOrPP qw(clone);
 use Perinci::Sub::Normalize qw(normalize_function_metadata);
