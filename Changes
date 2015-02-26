@@ -1,5 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.75    2015-02-26 (PERLANCAR)
+
+	- No functional changes.
+
+	- Switch from Log::Any to Log::Any::IfLOG.
+
+
 0.74    2015-02-19 (PERLANCAR)
 
         - Ignore entity_date property (produced by Perinci::Access::Perl, for
