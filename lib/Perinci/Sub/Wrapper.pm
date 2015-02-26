@@ -1573,7 +1573,7 @@ $Log_Perinci_Wrapper_Code is set to true, generated wrapper source code is
 logged at trace level using L<Log::Any>. It can be displayed, for example, using
 L<Log::Any::App>:
 
- % LOG_PERINCI_WRAPPER_CODE=1 TRACE=1 \
+ % LOG=1 LOG_PERINCI_WRAPPER_CODE=1 TRACE=1 \
    perl -MLog::Any::App -MPerinci::Sub::Wrapper=wrap_sub \
    -e 'wrap_sub(sub=>sub{}, meta=>{v=>1.1, args=>{a=>{schema=>"int"}}});'
 
