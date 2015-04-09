@@ -116,6 +116,33 @@ subtest 'prop: args' => sub {
     subtest "spec key: default" => sub {
         my $meta;
 
+        $meta = {v=>1.1, args=>{a=>{schema=>"int*"}}};
+        test_wrap(
+            name      => "no default won't create an undef key in args",
+            wrap_args => {sub=>$sub_as_is, meta=>$meta},
+            calls     => [
+                {argsr=>[], res=>[200,"OK",{}]},
+            ],
+        );
+
+        $meta = {v=>1.1, args=>{a=>{schema=>["int*", default=>undef]}}};
+        test_wrap(
+            name      => "schema default=undef will create an undef key in args",
+            wrap_args => {sub=>$sub_as_is, meta=>$meta},
+            calls     => [
+                {argsr=>[], res=>[200,"OK",{a=>undef}]},
+            ],
+        );
+
+        $meta = {v=>1.1, args=>{a=>{schema=>["int*"], default=>undef}}};
+        test_wrap(
+            name      => "default=undef will create an undef key in args",
+            wrap_args => {sub=>$sub_as_is, meta=>$meta},
+            calls     => [
+                {argsr=>[], res=>[200,"OK",{a=>undef}]},
+            ],
+        );
+
         $meta = {v=>1.1, args=>{a=>{schema=>"int", default=>10}}};
         test_wrap(
             name        => 'normal',

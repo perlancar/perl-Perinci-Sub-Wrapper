@@ -150,6 +150,12 @@ sub test_wrap {
                         or diag explain $call_res;
                 }
 
+                if (exists $test_args{call_actual_res}) {
+                    is_deeply($call_res->[2], $test_args{call_actual_res},
+                              "call actual res")
+                        or diag explain $call_res->[2];
+                }
+
                 if (exists $test_args{call_actual_res_re}) {
                     like($call_res->[2], $test_args{call_actual_res_re},
                          "call actual res");
@@ -192,7 +198,7 @@ sub test_wrap {
 
                         if (exists $call->{actual_res}) {
                             is_deeply($res->[2], $call->{actual_res}, "actual res")
-                                or diag explain $res;
+                                or diag explain $res->[2];
                         }
 
                         if (exists $call->{actual_res_re}) {
