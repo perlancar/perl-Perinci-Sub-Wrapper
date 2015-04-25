@@ -261,7 +261,7 @@ sub push_lines {
         for my $l (@lines) {
             $l->[2] =
                 $self->{_cur_handler} ?
-                    "$self->{_cur_handler} p=".$self->{_cur_handler_meta}{prio}
+                    "$self->{_cur_handler} prio=".$self->{_cur_handler_meta}{prio}
                         : "";
         }
     }
@@ -288,7 +288,7 @@ sub _join_codes {
             if (defined $l->[2]) {
                 my $num_ws = 80 - length($s);
                 $num_ws = 1 if $num_ws < 1;
-                $s .= (" " x $num_ws) . "# $l->[2]";
+                $s .= (" " x $num_ws) . "## $l->[2]";
             }
             push @lines, $s;
         }
