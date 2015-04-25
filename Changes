@@ -1,5 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.76    2015-04-25 (PERLANCAR)
+
+        - Make sure we also use ## as trailing comment when debug=1 [RT#103932].
+
+        - Add a couple of benchmark devscripts.
+
+
 0.75    2015-02-26 (PERLANCAR)
 
 	- No functional changes.
