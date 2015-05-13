@@ -722,6 +722,48 @@ sub handle_args {
     $self->_handle_args(%args);
 }
 
+# after args
+sub handlemeta_args_rels { {v=>2, prio=>11} }
+sub handle_args_rels {
+    my ($self, %args) = @_;
+
+    my $v = $args{v} // $self->{_meta}{args_rels};
+    return unless $v;
+
+    my $argsterm = $args{argsterm} // '%args';
+
+    $self->select_section('before_call_arg_validation');
+    $self->push_lines('', '# check args_rels');
+
+    my $dn = "args_rels";
+    my $hc = $self->_sah->get_compiler("human");
+    my $cd_h = $hc->init_cd;
+    $cd_h->{args}{lang} //= $cd_h->{default_lang};
+
+    my $cd = $self->_plc->compile(
+        data_name            => $dn,
+        data_term            => "\\$argsterm",
+        schema               => ['hash', $v],
+        return_type          => 'str',
+        indent_level         => $self->get_indent_level + 1,
+        human_hash_values    => {
+            field  => $hc->_xlt($cd_h, "argument"),
+            fields => $hc->_xlt($cd_h, "arguments"),
+        },
+    );
+    $self->_add_modules($cd->{module_statements});
+    for (@{ $cd->{modules} }) { $self->_add_module($_) unless $cd->{module_statements}{$_} }
+    $self->_add_var($_, $cd->{vars}{$_}) for sort keys %{ $cd->{vars} };
+    $cd->{result} =~ s/\A\s+//;
+    $self->push_lines(
+        "my \$err_$dn;",
+        "$cd->{result};",
+    );
+    $self->_errif(
+        400, qq["\$err_$dn"],
+        "\$err_$dn");
+}
+
 sub handlemeta_result { {v=>2, prio=>50} }
 sub handle_result {
     require Data::Sah;
