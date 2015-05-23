@@ -1,5 +1,10 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.78    2015-05-23 (PERLANCAR)
+
+	- Add wrap options: core, core_or_pp, pp (like in Data::Sah).
+
+
 0.77    2015-05-13 (PERLANCAR)
 
 	- Check args_rels property.
