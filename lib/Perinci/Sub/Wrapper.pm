@@ -44,18 +44,54 @@ sub __squote {
     $res;
 }
 
+sub _check_module {
+    my ($self, $mod) = @_;
+
+    if ($self->{_args}{core}) {
+        if ($mod =~ /\A(experimental|Scalar::Numeric::Util|Scalar::Util::Numeric::PP)\z/) {
+            die "BUG: Requested non-core module '$mod' while wrap arg core=1";
+        } elsif ($mod =~ /\A(warnings|List::Util)\z/) {
+            # core modules
+        } else {
+            die "BUG: Haven't noted whether module '$mod' is core/non-core";
+        }
+    }
+
+    if ($self->{_args}{pp}) {
+        if ($mod =~ /\A(List::Util|Scalar::Numeric::Util)\z/) {
+            die "BUG: Requested XS module '$mod' while wrap arg pp=1";
+        } elsif ($mod =~ /\A(experimental|warnings|Scalar::Util::Numeric::PP)\z/) {
+            # pp modules
+        } else {
+            die "BUG: Haven't noted whether module '$mod' is pure-perl/XS";
+        }
+    }
+
+    if ($self->{_args}{core_or_pp}) {
+        if ($mod =~ /\A(Scalar::Numeric::Util)\z/) {
+            die "BUG: Requested non-core XS module '$mod' while wrap arg core_or_pp=1";
+        } elsif ($mod =~ /\A(experimental|warnings|List::Util|Scalar::Util::Numeric::PP)\z/) {
+            # core or pp modules
+        } else {
+            die "BUG: Haven't noted whether module '$mod' is non-core xs or not";
+        }
+    }
+}
+
 sub _add_module {
     my ($self, $mod) = @_;
     unless ($mod ~~ $self->{_modules}) {
         local $self->{_cur_section};
         $self->select_section('before_sub_require_modules');
         if ($mod =~ /(-?)(.+?)\s+(.+)/) {
+            $self->_check_module($2);
             if ($1) {
                 $self->push_lines("no $2 $3;");
             } else {
                 $self->push_lines("use $2 $3;");
             }
         } else {
+            $self->_check_module($mod);
             $self->push_lines("require $mod;");
         }
         push @{ $self->{_modules} }, $mod;
@@ -634,6 +670,9 @@ sub _handle_args {
                     schema_is_normalized => $opt_sin,
                     return_type          => 'str',
                     indent_level         => $self->get_indent_level + 1,
+                    core                 => $self->{_args}{core},
+                    core_or_pp           => $self->{_args}{core_or_pp},
+                    pp                   => $self->{_args}{pp},
                     %{ $self->{_args}{_extra_sah_compiler_args} // {}},
                 );
                 $self->_add_modules($cd->{module_statements});
@@ -750,6 +789,9 @@ sub handle_args_rels {
             field  => $hc->_xlt($cd_h, "argument"),
             fields => $hc->_xlt($cd_h, "arguments"),
         },
+        core                 => $self->{_args}{core},
+        core_or_pp           => $self->{_args}{core_or_pp},
+        pp                   => $self->{_args}{pp},
     );
     $self->_add_modules($cd->{module_statements});
     for (@{ $cd->{modules} }) { $self->_add_module($_) unless $cd->{module_statements}{$_} }
@@ -866,6 +908,9 @@ sub handle_result {
                 schema_is_normalized => $opt_sin,
                 return_type          => 'str',
                 indent_level         => $self->get_indent_level + 1,
+                core                 => $self->{_args}{core},
+                core_or_pp           => $self->{_args}{core_or_pp},
+                pp                   => $self->{_args}{pp},
                 %{ $self->{_args}{_extra_sah_compiler_args} // {}},
             );
             $self->_add_modules($cd->{module_statements});
@@ -903,6 +948,9 @@ sub handle_result {
                 schema_is_normalized => $opt_sin,
                 return_type          => 'str',
                 indent_level         => $self->get_indent_level + 1,
+                core                 => $self->{_args}{core},
+                core_or_pp           => $self->{_args}{core_or_pp},
+                pp                   => $self->{_args}{pp},
                 %{ $self->{_args}{_extra_sah_compiler_args} // {}},
             );
             $self->push_lines('my $rec_err;');
@@ -1043,6 +1091,9 @@ sub wrap {
         # already done it
         if (grep {$_->{validate_result}} @$wrap_logs);
     $args{validate_result}             //= 1;
+    $args{core}                        //= $ENV{PERINCI_WRAPPER_CORE};
+    $args{core_or_pp}                  //= $ENV{PERINCI_WRAPPER_CORE_OR_PP};
+    $args{pp}                          //= $ENV{PERINCI_WRAPPER_PP};
 
     my $sub_ref_name;
     # if sub_name is not provided, create a unique name for it. it is needed by
@@ -1387,6 +1438,23 @@ unless previous wrapper(s) have already done this.
 
 _
         },
+        core => {
+            summary => 'If set to true, will avoid the use of non-core modules',
+            schema => 'bool',
+        },
+        core_or_pp => {
+            summary => 'If set to true, will avoid the use of non-core XS modules',
+            schema => 'bool',
+            description => <<'_',
+
+In other words, will stick to core or pure-perl modules only.
+
+_
+        },
+        pp => {
+            summary => 'If set to true, will avoid the use of XS modules',
+            schema => 'bool',
+        },
     },
 };
 sub wrap_sub {
@@ -1522,6 +1590,18 @@ The OO interface is only used internally or when you want to extend the wrapper.
 
 If set to 1, will log the generated wrapper code. This value is used to set
 C<$Log_Wrapper_Code> if it is not already set.
+
+=head2 PERINCI_WRAPPER_CORE => bool
+
+Set default for wrap argument C<core>.
+
+=head2 PERINCI_WRAPPER_CORE_OR_PP => bool
+
+Set default for wrap argument C<core_or_pp>.
+
+=head2 PERINCI_WRAPPER_PP => bool
+
+Set default for wrap argument C<pp>.
 
 
 =head1 RINCI FUNCTION METADATA
