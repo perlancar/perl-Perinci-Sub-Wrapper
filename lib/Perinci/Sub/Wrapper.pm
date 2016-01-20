@@ -686,7 +686,7 @@ sub _handle_args {
                 );
                 if ($argspec->{stream}) {
                     $self->push_lines(
-                        'if ('."\$err_$dn".') { die "Record #$i of streaming argument '."'$prefix$argname'".' fails validation: '."\$err_$dn".'" }',
+                        'if ('."\$err_$dn".') { die "Record #$i of streaming argument '."'$prefix$argname'".' ($rec) fails validation: '."\$err_$dn".'" }',
                         '$rec;',
                     );
                 } else {
@@ -922,7 +922,7 @@ sub handle_result {
             $self->push_lines("$cd->{result};");
             $self->_errif(
                 500,
-                qq["BUG: Result from sub $sub_name fails validation: ].
+                qq["BUG: Result from sub $sub_name (\$_w_res2) fails validation: ].
                     qq[\$_w_err2_res"],
                 "\$_w_err2_res");
             $self->unindent;
