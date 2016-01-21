@@ -956,7 +956,7 @@ sub handle_result {
             $self->push_lines('my $rec_err;');
             $cd->{result} =~ s/\A\s+//;
             $self->push_lines("$cd->{result};");
-            $self->push_lines('if ($rec_err) { die "BUG: Result stream record #$i fail validation: $rec_err" }');
+            $self->push_lines('if ($rec_err) { die "BUG: Result stream record #$i ($rec) fails validation: $rec_err" }');
             $self->push_lines('$rec;');
             $self->unindent;
             $self->push_lines('}; ## result coderef wrapper');
