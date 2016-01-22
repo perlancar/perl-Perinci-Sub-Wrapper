@@ -1,5 +1,13 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.81    2016-01-22 (PERLANCAR)
+
+	- No functional changes.
+
+	- Show streaming record (input this time) that fails validation, to
+	  aid debugging.
+
+
 0.80    2016-01-20 (PERLANCAR)
 
 	- No functional changes.
