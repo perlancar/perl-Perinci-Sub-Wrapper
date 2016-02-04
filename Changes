@@ -1,5 +1,12 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.82    2016-02-04 (PERLANCAR)
+
+	- [Bugfix] When arg/result is stream, check that schema must be
+	  str/buf/array and when schema is array use the schema specified
+	  in its 'of' clause.
+
+
 0.81    2016-01-22 (PERLANCAR)
 
 	- No functional changes.
