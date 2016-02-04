@@ -9,6 +9,7 @@ use warnings;
 use experimental 'smartmatch';
 use Log::Any::IfLOG '$log';
 
+use Data::Dmp qw(dmp);
 use Function::Fallback::CoreOrPP qw(clone);
 use Perinci::Sub::Normalize qw(normalize_function_metadata);
 use Perinci::Sub::Util qw(err);
@@ -34,14 +35,6 @@ our $protocol_version = 2;
 sub new {
     my ($class) = @_;
     bless {}, $class;
-}
-
-sub __squote {
-    require Data::Dumper;
-    my $res = Data::Dumper->new([shift])->
-        Purity(1)->Terse(1)->Deepcopy(1)->Indent(0)->Dump;
-    chomp $res;
-    $res;
 }
 
 sub _check_module {
@@ -119,7 +112,7 @@ sub _add_var {
     unless (exists $self->{_vars}{$var}) {
         local $self->{_cur_section};
         $self->select_section('declare_vars');
-        $self->push_lines("my \$$var = ".__squote($value).";");
+        $self->push_lines("my \$$var = ".dmp($value).";");
         $self->{_vars}{$var} = $value;
     }
 }
@@ -506,7 +499,7 @@ sub handle_args_as {
         $self->select_section('ACCEPT_ARGS2');
         for my $a (sort keys %$args_p) {
             my $as = $args_p->{$a};
-            my $line = '$args{'.__squote($a).'} = ';
+            my $line = '$args{'.dmp($a).'} = ';
             defined($as->{pos}) or die "Error in args property for arg '$a': ".
                 "no pos defined";
             my $pos = int($as->{pos} + 0);
@@ -554,7 +547,7 @@ sub handle_args_as {
         for my $a (sort {$args_p->{$a}{pos} <=> $args_p->{$b}{pos}}
                        keys %$args_p) {
             my $as = $args_p->{$a};
-            my $t = '$args{'.__squote($a).'}';
+            my $t = '$args{'.dmp($a).'}';
             my $line;
             defined($as->{pos}) or die "Error in args property for arg '$a': ".
                 "no pos defined";
@@ -612,7 +605,7 @@ sub _handle_args {
         $self->_errif(400, q["Invalid argument name (please use letters/numbers/underscores only)'].$prefix.q[$_'"],
                       '!/\A(-?)\w+(\.\w+)*\z/o');
         $self->_errif(400, q["Unknown argument '].$prefix.q[$_'"],
-                      '!($1 || $_ ~~ '.__squote([sort keys %$v]).')');
+                      '!($1 || $_ ~~ '.dmp([sort keys %$v]).')');
         $self->unindent;
         $self->push_lines('}');
     }
@@ -737,11 +730,11 @@ sub _handle_args {
                 if ($has_default_prop) {
                     $self->push_lines(
                         '} else {',
-                        "    $argterm //= ".__squote($argspec->{default}).";");
+                        "    $argterm //= ".dmp($argspec->{default}).";");
                 } elsif ($has_sch_default) {
                     $self->push_lines(
                         '} else {',
-                        "    $argterm //= ".__squote($sch->[1]{default}).";");
+                        "    $argterm //= ".dmp($sch->[1]{default}).";");
                 }
                 $self->push_lines("} ## if exists arg $prefix$argname");
             } # if opt_va
@@ -749,7 +742,7 @@ sub _handle_args {
         } elsif ($has_default_prop) {
             # doesn't have schema but have 'default' property, we still need to
             # set default here
-            $self->push_lines("$argterm = ".__squote($argspec->{default}).
+            $self->push_lines("$argterm = ".dmp($argspec->{default}).
                                   " if !exists($argterm);");
         }
         if ($argspec->{req} && $opt_va) {
