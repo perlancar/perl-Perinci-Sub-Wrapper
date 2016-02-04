@@ -256,7 +256,7 @@ subtest 'prop: args' => sub {
                 meta => {
                     v => 1.1,
                     args => {
-                        a1 => {schema=>'int*', stream=>1},
+                        a1 => {schema=>['array*', of=>'int*'], stream=>1},
                     },
                 },
             },

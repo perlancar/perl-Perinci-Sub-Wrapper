@@ -641,6 +641,11 @@ sub _handle_args {
                 $self->indent;
 
                 if ($argspec->{stream}) {
+                    die "Error in schema for argument '$argname': must be str/buf/array if stream=1"
+                        unless $sch->[0] =~ /\A(str|buf|array)\z/; # XXX allow 'any' if all of its 'of' values are str/buf/array
+                    die "Error in schema for argument '$argname': must specify 'of' array clause if stream=1"
+                        if $sch->[0] eq 'array' && !$sch->[1]{of};
+
                     $self->_errif(
                         400,
                         qq["Argument '$prefix$argname' (stream) fails validation: must be coderef"],
@@ -666,7 +671,7 @@ sub _handle_args {
                 my $cd = $self->_plc->compile(
                     data_name            => $dn,
                     data_term            => $argspec->{stream} ? '$rec' : $argterm,
-                    schema               => $sch,
+                    schema               => $argspec->{stream} && $sch->[0] eq 'array' ? $sch->[1]{of} : $sch,
                     schema_is_normalized => $opt_sin,
                     return_type          => 'str',
                     indent_level         => $self->get_indent_level + 1,
@@ -895,11 +900,18 @@ sub handle_result {
         );
         for my $s (sort keys %schemas_by_status) {
             my $sch = $schemas_by_status{$s};
+            if ($v->{stream}) {
+                die "Error in result schema: must be str/buf/array if stream=1"
+                    unless $sch->[0] =~ /\A(str|buf|array)\z/; # XXX allow 'any' if all of its 'of' values are str/buf/array
+                die "Error in result schema: must specify 'of' array clause if stream=1"
+                    if $sch->[0] eq 'array' && !$sch->[1]{of};
+            }
             $self->push_lines("if (\$_w_res->[0] == $s) {");
             $self->indent;
             $self->push_lines('if (!$_w_res_is_stream) {');
             $self->indent;
 
+            # validation for when not a stream
             my $cd = $self->_plc->compile(
                 data_name            => '_w_res2',
                 # err_res can clash on arg named 'res'
@@ -944,7 +956,7 @@ sub handle_result {
                 data_name            => 'rec',
                 # err_res can clash on arg named 'res'
                 err_term             => '$rec_err',
-                schema               => $sch,
+                schema               => $sch->[0] eq 'array' ? $sch->[1]{of} : $sch,
                 schema_is_normalized => $opt_sin,
                 return_type          => 'str',
                 indent_level         => $self->get_indent_level + 1,

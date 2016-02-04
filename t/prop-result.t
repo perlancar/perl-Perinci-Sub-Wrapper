@@ -95,7 +95,7 @@ subtest 'prop: result' => sub {
             meta => {
                 v => 1.1,
                 result => {
-                    schema => 'int*',
+                    schema => ['array', of=>'int*'],
                     stream => 1,
                 },
             },
