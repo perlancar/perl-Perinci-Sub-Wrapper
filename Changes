@@ -1,5 +1,13 @@
 Revision history for Perinci-Sub-Wrapper
 
+0.83    2016-06-02 (PERLANCAR)
+
+        - No functional changes.
+
+        - Adjust to Data::Sah 0.79 (introduced v in compilation data, modules
+          become array of records).
+
+
 0.82    2016-02-04 (PERLANCAR)
 
 	- [Bugfix] When arg/result is stream, check that schema must be
