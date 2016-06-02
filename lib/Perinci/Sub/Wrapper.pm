@@ -76,34 +76,16 @@ sub _add_module {
     unless ($mod ~~ $self->{_modules}) {
         local $self->{_cur_section};
         $self->select_section('before_sub_require_modules');
-        if ($mod =~ /(-?)(.+?)\s+(.+)/) {
+        if ($mod =~ /\A(use|no) (\S+)/) {
             $self->_check_module($2);
-            if ($1) {
-                $self->push_lines("no $2 $3;");
-            } else {
-                $self->push_lines("use $2 $3;");
-            }
-        } else {
+            $self->push_lines("$mod;");
+        } elsif ($mod =~ /\A\w+(::\w+)*\z/) {
             $self->_check_module($mod);
             $self->push_lines("require $mod;");
+        } else {
+            die "BUG: Invalid module name/statement: $mod";
         }
         push @{ $self->{_modules} }, $mod;
-    }
-}
-
-sub _add_modules {
-    my ($self, $mods) = @_;
-    for my $mod (sort keys %$mods) {
-        my $modspec = $mods->{$mod};
-        if ($modspec->[1]) {
-            if ($modspec->[0] eq 'no') {
-                $self->_add_module("-$mod ".join(" ", @{ $modspec->[1] }));
-            } else {
-                $self->_add_module( "$mod ".join(" ", @{ $modspec->[1] }));
-            }
-        } else {
-            $self->_add_module($mod);
-        }
     }
 }
 
@@ -597,7 +579,7 @@ sub _handle_args {
     my $argsterm = $args{argsterm} // '%args';
 
     if ($opt_va) {
-        $self->_add_module("experimental 'smartmatch'");
+        $self->_add_module("use experimental 'smartmatch'");
         $self->select_section('before_call_arg_validation');
         $self->push_lines('', '# check args') if $prefix eq '';
         $self->push_lines("for (sort keys $argsterm) {");
@@ -673,8 +655,11 @@ sub _handle_args {
                     pp                   => $self->{_args}{pp},
                     %{ $self->{_args}{_extra_sah_compiler_args} // {}},
                 );
-                $self->_add_modules($cd->{module_statements});
-                for (@{ $cd->{modules} }) { $self->_add_module($_) unless $cd->{module_statements}{$_} }
+                die "Incompatible Data::Sah version (cd v=$cd->{v}, expected 2)" unless $cd->{v} == 2;
+                for my $mod_rec (@{ $cd->{modules} }) {
+                    next unless $mod_rec->{phase} eq 'runtime';
+                    $self->_add_module($mod_rec->{use_statement} // $mod_rec->{name});
+                }
                 $self->_add_var($_, $cd->{vars}{$_})
                     for sort keys %{ $cd->{vars} };
                 $cd->{result} =~ s/\A\s+//;
@@ -791,8 +776,11 @@ sub handle_args_rels {
         core_or_pp           => $self->{_args}{core_or_pp},
         pp                   => $self->{_args}{pp},
     );
-    $self->_add_modules($cd->{module_statements});
-    for (@{ $cd->{modules} }) { $self->_add_module($_) unless $cd->{module_statements}{$_} }
+    die "Incompatible Data::Sah version (cd v=$cd->{v}, expected 2)" unless $cd->{v} == 2;
+    for my $mod_rec (@{ $cd->{modules} }) {
+        next unless $mod_rec->{phase} eq 'runtime';
+        $self->_add_module($mod_rec->{use_statement} // $mod_rec->{name});
+    }
     $self->_add_var($_, $cd->{vars}{$_}) for sort keys %{ $cd->{vars} };
     $cd->{result} =~ s/\A\s+//;
     $self->push_lines(
@@ -918,8 +906,11 @@ sub handle_result {
                 pp                   => $self->{_args}{pp},
                 %{ $self->{_args}{_extra_sah_compiler_args} // {}},
             );
-            $self->_add_modules($cd->{module_statements});
-            for (@{ $cd->{modules} }) { $self->_add_module($_) unless $cd->{module_statements}{$_} }
+            die "Incompatible Data::Sah version (cd v=$cd->{v}, expected 2)" unless $cd->{v} == 2;
+            for my $mod_rec (@{ $cd->{modules} }) {
+                next unless $mod_rec->{phase} eq 'runtime';
+                $self->_add_module($mod_rec->{use_statement} // $mod_rec->{name});
+            }
             $self->_add_var($_, $cd->{vars}{$_})
                 for sort keys %{ $cd->{vars} };
             $self->push_lines("my \$_w_err2_res;");
@@ -958,6 +949,8 @@ sub handle_result {
                 pp                   => $self->{_args}{pp},
                 %{ $self->{_args}{_extra_sah_compiler_args} // {}},
             );
+            die "Incompatible Data::Sah version (cd v=$cd->{v}, expected 2)" unless $cd->{v} == 2;
+            # XXX no need to require modules required by validator?
             $self->push_lines('my $rec_err;');
             $cd->{result} =~ s/\A\s+//;
             $self->push_lines("$cd->{result};");
