@@ -1292,7 +1292,7 @@ sub wrap {
         $result->{source} = $self->_format_embed_wrapper_code;
     } else {
         my $source = $self->_format_dyn_wrapper_code;
-        if ($Log_Wrapper_Code && $log->is_trace) {
+        if ($Log_Wrapper_Code && log_is_trace()) {
             require String::LineNumber;
             log_trace("wrapper code:\n%s",
                          $ENV{LINENUM} // 1 ?
@@ -1573,7 +1573,7 @@ only the first part of the name will be used (i.e., C<handle_NAME1()>).
 =head2 $Log_Wrapper_Code (BOOL)
 
 Whether to log wrapper result. Default is from environment variable
-LOG_PERINCI_WRAPPER_CODE, or false. Logging is done with L<Log::Any> at trace
+LOG_PERINCI_WRAPPER_CODE, or false. Logging is done with L<Log::ger> at trace
 level.
 
 
@@ -1690,11 +1690,11 @@ properties like less stack trace depth and less function call overhead.
 
 If environment variable L<LOG_PERINCI_WRAPPER_CODE> or package variable
 $Log_Perinci_Wrapper_Code is set to true, generated wrapper source code is
-logged at trace level using L<Log::Any>. It can be displayed, for example, using
-L<Log::Any::App>:
+logged at trace level using L<Log::ger>. It can be displayed, for example:
 
- % LOG=1 LOG_PERINCI_WRAPPER_CODE=1 TRACE=1 \
-   perl -MLog::Any::App -MPerinci::Sub::Wrapper=wrap_sub \
+ % LOG_PERINCI_WRAPPER_CODE=1 TRACE=1 \
+   perl -MLog::ger::LevelFromEnv -MLog::ger::Output=Screen \
+   -MPerinci::Sub::Wrapper=wrap_sub \
    -e 'wrap_sub(sub=>sub{}, meta=>{v=>1.1, args=>{a=>{schema=>"int"}}});'
 
 Note that L<Data::Sah> (the module used to generate validator code) observes
