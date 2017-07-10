@@ -7,7 +7,7 @@ use 5.010001;
 use strict;
 use warnings;
 use experimental 'smartmatch';
-use Log::Any::IfLOG '$log';
+use Log::ger;
 
 use Data::Dmp qw(dmp);
 use Function::Fallback::CoreOrPP qw(clone);
@@ -1233,7 +1233,7 @@ sub wrap {
                 'unless (ref($_w_res) eq "ARRAY" && $_w_res->[0]) {',
             );
             $self->indent;
-            if ($log->is_trace) {
+            if (log_is_trace) {
                 $self->_add_module('Data::Dumper');
                 $self->push_lines(
                     'local $Data::Dumper::Purity   = 1;',
@@ -1294,7 +1294,7 @@ sub wrap {
         my $source = $self->_format_dyn_wrapper_code;
         if ($Log_Wrapper_Code && $log->is_trace) {
             require String::LineNumber;
-            $log->tracef("wrapper code:\n%s",
+            log_trace("wrapper code:\n%s",
                          $ENV{LINENUM} // 1 ?
                              String::LineNumber::linenum($source) :
                                    $source);
