@@ -487,7 +487,7 @@ sub handle_args_as {
             my $pos = int($as->{pos} + 0);
             $pos >= 0 or die "Error in args property for arg '$a': ".
                 "negative value in pos";
-            if ($as->{greedy}) {
+            if ($as->{slurpy} // $as->{greedy}) {
                 if ($ref) {
                     $line .= '[splice @{$_[0]}, '.$pos.'] if @{$_[0]} > '.$pos;
                 } else {
@@ -536,7 +536,7 @@ sub handle_args_as {
             my $pos = int($as->{pos} + 0);
             $pos >= 0 or die "Error in args property for arg '$a': ".
                 "negative value in pos";
-            if ($as->{greedy}) {
+            if ($as->{slurpy} // $as->{greedy}) {
                 $line = 'splice @args, '.$pos.', scalar(@args)-1, @{'.$t.'}';
             } else {
                 $line = '$args'.($ref ? '->':'').'['.$pos."] = $t if exists $t";
