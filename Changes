@@ -1,3 +1,10 @@
+0.851   2019-07-04  Released-By: PERLANCAR; Urgency: medium
+
+	- Observe function feature 'validate_args' in Rinci metadata, and
+	  disable validate_args by default if function states that it can
+	  validate args on its own.
+
+
 0.850   2019-04-15  Released-By: PERLANCAR
 
 	- Update to Rinci 1.1.88 (slurpy).
